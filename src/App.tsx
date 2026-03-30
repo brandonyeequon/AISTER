@@ -5,6 +5,8 @@ import { Login } from './pages/Login';
 import { Dashboard } from './pages/Dashboard';
 import { Evaluations } from './pages/Evaluations';
 import { AdminDashboard } from './pages/AdminDashboard';
+import { ResearchAnalytics } from './pages/ResearchAnalytics';
+import { Settings } from './pages/Settings';
 import { NotFound } from './pages/NotFound';
 import './styles/globals.css';
 
@@ -42,7 +44,25 @@ function App() {
             }
           />
           
-          <Route path="/" element={<Navigate to="/dashboard" replace />} />
+          <Route
+            path="/research"
+            element={
+              <ProtectedRoute>
+                <ResearchAnalytics />
+              </ProtectedRoute>
+            }
+          />
+          
+          <Route
+            path="/settings"
+            element={
+              <ProtectedRoute>
+                <Settings />
+              </ProtectedRoute>
+            }
+          />
+          
+          <Route path="/" element={<Navigate to="/evaluations" replace />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </AuthProvider>

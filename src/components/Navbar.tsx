@@ -9,10 +9,11 @@ export const Navbar: React.FC = () => {
 
   const isActive = (path: string) => location.pathname === path;
 
-  const navLinks = [
+  const navTabs = [
+    { path: '/evaluations', label: 'Evaluation' },
     { path: '/dashboard', label: 'Dashboard' },
-    { path: '/evaluations', label: 'Evaluations' },
-    ...(user?.role === 'admin' ? [{ path: '/admin', label: 'Admin' }] : []),
+    { path: '/research', label: 'Research Analytics' },
+    { path: '/settings', label: 'Settings' },
   ];
 
   const handleLogout = () => {
@@ -23,31 +24,46 @@ export const Navbar: React.FC = () => {
   if (!user) return null;
 
   return (
-    <nav className="flex justify-between items-center px-5 py-5 shadow-md bg-white">
-      <div className="flex items-center gap-8">
-        <h1 className="text-4xl font-black text-primary">AISTER</h1>
-        <div className="flex gap-8">
-          {navLinks.map((link) => (
+    <nav className="navbar-container">
+      <div className="navbar-left">
+        <div className="navbar-logo">
+          <img src="/uvu-official.svg" alt="UVU Logo" className="uvu-logo-image" />
+        </div>
+        <div className="navbar-tabs">
+          {navTabs.map((tab) => (
             <button
-              key={link.path}
-              onClick={() => navigate(link.path)}
-              className={`text-2xl font-black text-primary transition-all ${
-                isActive(link.path)
-                  ? 'underline underline-offset-4'
-                  : 'hover:text-primary-dark'
-              }`}
+              key={tab.path}
+              onClick={() => navigate(tab.path)}
+              className={`navbar-tab ${isActive(tab.path) ? 'is-active' : ''}`}
             >
-              {link.label}
+              {tab.label}
             </button>
           ))}
         </div>
       </div>
-      <button
-        onClick={handleLogout}
-        className="text-lg font-bold text-primary hover:text-primary-dark"
-      >
-        Logout
-      </button>
+
+      <div className="navbar-right">
+        <div className="ai-badge">
+          <div className="ai-dot"></div>
+          <span>AI Enabled</span>
+        </div>
+        
+        <div className="navbar-divider"></div>
+
+        <div className="navbar-user">
+          <div className="user-avatar">W</div>
+          <span className="user-name">{user?.name || 'Willy Wolverine'}</span>
+        </div>
+
+        <div className="navbar-divider"></div>
+
+        <button
+          onClick={handleLogout}
+          className="logout-button"
+        >
+          Logout
+        </button>
+      </div>
     </nav>
   );
 };

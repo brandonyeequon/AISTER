@@ -10,7 +10,7 @@ export default {
         primary: "#1c6b3d",
         "primary-dark": "#15552b",
         "primary-light": "#2d8f5f",
-        bg: "#e3efec",
+        bg: "#e8e8e8",
         card: "#f5f5f5",
         text: "#8f949c",
         border: "#ccc",

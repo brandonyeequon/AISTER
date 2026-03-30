@@ -31,59 +31,56 @@ export const Login: React.FC = () => {
     try {
       setError(null);
       await login(data.username, data.password);
-      navigate('/dashboard');
+      navigate('/evaluations');
     } catch (err) {
       setError('Login failed. Please try again.');
       console.error(err);
     }
   };
 
+  const handleTestLogin = async () => {
+    try {
+      setError(null);
+      await login('test@example.com', '123456');
+      navigate('/evaluations');
+    } catch (err) {
+      setError('Test login failed. Please try again.');
+      console.error(err);
+    }
+  };
+
   return (
     <div className="auth-signin">
-      {/* Main Content */}
       <div className="login-container">
         <div className="login-card">
-          {/* Logo and Branding */}
-          <div className="text-center mb-4">
-            <img src="/uvu-official.svg" alt="UVU Logo" className="login-logo mb-0 translate-x-2.5" />
-            <h2 className="text-2xl font-bold text-primary">AI-STER</h2>
+          <div className="login-brand">
+            <img src="/uvu-2-logo.png" alt="UVU Logo" className="login-logo" />
+            <h2 className="brand-name">AI-STER</h2>
           </div>
 
-          {/* Tabs */}
-          <div className="flex gap-4 mb-8 justify-center">
+          <div className="auth-tabs">
             <button
               onClick={() => setActiveTab('login')}
-              className={`px-8 py-2 rounded-lg font-bold text-lg transition-all ${
-                activeTab === 'login'
-                  ? 'bg-white text-primary shadow-md'
-                  : 'bg-transparent text-primary border border-gray-300'
-              }`}
+              className={`auth-tab ${activeTab === 'login' ? 'is-active' : ''}`}
+              type="button"
             >
               Login
             </button>
             <button
               onClick={() => setActiveTab('signup')}
-              className={`px-8 py-2 rounded-lg font-bold text-lg transition-all ${
-                activeTab === 'signup'
-                  ? 'bg-white text-primary shadow-md'
-                  : 'bg-transparent text-primary border border-gray-300'
-              }`}
+              className={`auth-tab ${activeTab === 'signup' ? 'is-active' : ''}`}
+              type="button"
             >
               Sign Up
             </button>
           </div>
 
-          {/* Login Form */}
           {activeTab === 'login' && (
             <>
               <h3 className="login-title">Welcome Back</h3>
 
               <form onSubmit={handleSubmit(onSubmit)} className="login-form">
-                {error && (
-                  <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
-                    {error}
-                  </div>
-                )}
+                {error && <div className="login-alert">{error}</div>}
 
                 <FormInput
                   label="Username"
@@ -101,38 +98,39 @@ export const Login: React.FC = () => {
                   error={errors.password?.message}
                 />
 
-                <button
-                  type="submit"
-                  disabled={isLoading}
-                  className="login-button"
-                >
+                <button type="submit" disabled={isLoading} className="login-button">
                   {isLoading ? 'Signing in...' : 'Login to Your Account'}
                 </button>
               </form>
 
-              <div className="mt-4 text-center text-text text-sm">
-                Demo: username: anything • password: 123456
-              </div>
+              <div className="login-demo">Demo: username: anything • password: 123456</div>
+
+              <button 
+                type="button" 
+                onClick={handleTestLogin}
+                disabled={isLoading}
+                className="test-button"
+              >
+                Test Evaluations (Dev)
+              </button>
             </>
           )}
 
-          {/* Sign Up Form */}
           {activeTab === 'signup' && (
             <>
               <h3 className="login-title">Create Account</h3>
-              <p className="text-center text-text">Sign up functionality coming soon</p>
+              <p className="signup-note">Sign up functionality coming soon</p>
             </>
           )}
         </div>
       </div>
 
-      {/* Footer */}
       <footer className="footer">
-        <div className="text-center py-6 text-xs text-gray-600">
+        <div className="footer-content">
           <p>© 2025 Utah Valley University School of Education</p>
           <p>
             Need help? Contact Krista Ruggles |{' '}
-            <a href="mailto:kruggles@uvu.edu" className="text-primary hover:underline">
+            <a href="mailto:kruggles@uvu.edu" className="footer-link">
               K.Ruggles@uvu.edu
             </a>{' '}
             | 801-863-8057

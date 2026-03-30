@@ -12,13 +12,13 @@ export const FormInput: React.FC<FormInputProps> = ({
   ...props
 }) => {
   return (
-    <div className="flex flex-col gap-2">
+    <div className="form-group">
       <label className="form-label">{label}</label>
       <input
-        className={`form-input ${error ? 'border-red-500' : ''} ${className}`}
+        className={`form-input ${error ? 'form-input-error' : ''} ${className}`}
         {...props}
       />
-      {error && <span className="text-red-500 text-sm">{error}</span>}
+      {error && <span className="form-error">{error}</span>}
     </div>
   );
 };
