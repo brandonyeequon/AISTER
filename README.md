@@ -1,36 +1,100 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# AISTER - Teacher Evaluation System (Frontend)
+
+A modern React + Vite + Tailwind CSS frontend for the teacher evaluation system with AI integration.
+
+## Project Structure
+
+```
+src/
+├── pages/              # Route pages (Login, Dashboard, Evaluations, AdminDashboard)
+├── components/         # Reusable components (Button, FormInput, Card, Navbar, etc.)
+├── context/            # React Context for global state (AuthContext)
+├── utils/              # Utility functions and mock API
+├── styles/             # Global CSS and Tailwind setup
+├── App.tsx            # Main app routing
+└── main.tsx           # Entry point
+```
 
 ## Getting Started
 
-First, run the development server:
+### Prerequisites
+- Node.js 16+ and npm
+
+### Installation
+
+1. **Install dependencies:**
+   ```bash
+   npm install
+   ```
+
+2. **Start development server:**
+   ```bash
+   npm run dev
+   ```
+
+   The app will open at `http://localhost:5173`
+
+### Development
+
+#### Demo Login Credentials
+- Email: any email address (e.g., `teacher@example.com`)
+- Password: `123456`
+
+#### File Structure Quick Reference
+
+- **Pages**: `/src/pages/` - Full-page components for each route
+- **Components**: `/src/components/` - Reusable UI components (Button, Card, FormInput, etc.)
+- **Context**: `/src/context/` - AuthContext for authentication state
+- **API**: `/src/utils/mockApi.ts` - Mock API responses (swap with real API when ready)
+- **Styles**: `/src/styles/globals.css` - Global styles + Tailwind directives
+
+#### Design Tokens
+
+Tailwind config includes custom colors from your design:
+- `primary`: `#1c6b3d` (primary green)
+- `primary-dark`: `#15552b` (hover state)
+- `bg`: `#e3efec` (page background)
+- `card`: `#f5f5f5` (card background)
+- `text`: `#8f949c` (text color)
+
+## Building
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm run build
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Outputs optimized build to `dist/` folder.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## API Integration
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Currently using mock API (`utils/mockApi.ts`). To integrate real backend:
 
-## Learn More
+1. Update `VITE_API_BASE_URL` in `.env.local` to your backend URL
+2. Replace mock API calls in components with real fetch calls
+3. Define API contract with backend developer (see `/src/utils/mockApi.ts` for interface examples)
 
-To learn more about Next.js, take a look at the following resources:
+## Technologies Used
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+- **React 18** - UI framework
+- **Vite** - Build tool
+- **Tailwind CSS** - Utility-first CSS
+- **React Router v6** - Client-side routing
+- **React Hook Form** - Form handling
+- **Zod** - Schema validation
+- **TypeScript** - Type safety
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Scripts
 
-## Deploy on Vercel
+- `npm run dev` - Start development server
+- `npm run build` - Build for production
+- `npm run preview` - Preview production build locally
+- `npm run lint` - Run ESLint (if configured)
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Next Steps
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+1. Design more detailed components from Figma designs
+2. Integrate real API endpoints
+3. Add form validation and error handling
+4. Implement evaluation form builder
+5. Build feedback generation UI
+6. Add admin reporting features
