@@ -1,5 +1,4 @@
 import React, { useEffect, useState } from 'react';
-import { ChevronDown } from 'lucide-react';
 import { STER_COMPETENCIES, STERScores, ScoreLevel } from '../../utils/sterData';
 import { STERExpandedCard } from './STERExpandedCard';
 import { STERItemsModal } from './STERItemsModal';
@@ -53,10 +52,6 @@ export const STERScoringInterface: React.FC<STERScoringInterfaceProps> = ({
     }
   };
 
-  const categoryCompletion = competencies.filter(
-    (c) => scores[c.id]?.score !== null
-  ).length;
-
   return (
     <>
       <div className="ster-scoring-interface">
@@ -70,17 +65,6 @@ export const STERScoringInterface: React.FC<STERScoringInterfaceProps> = ({
               notes={scores[expandedCompetency.id]?.notes || ''}
               onNotesChange={handleNotesChange}
             />
-
-            {/* Expand All Items Button */}
-            <div className="ster-expanded-footer">
-              <button
-                className="ster-expand-all-button"
-                onClick={() => setShowAllItems(true)}
-              >
-                <ChevronDown size={18} />
-                <span>View All Items ({categoryCompletion}/{competencies.length})</span>
-              </button>
-            </div>
           </div>
         )}
       </div>

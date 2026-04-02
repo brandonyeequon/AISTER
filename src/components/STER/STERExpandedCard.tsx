@@ -48,6 +48,20 @@ export const STERExpandedCard: React.FC<STERExpandedCardProps> = ({
         </div>
       </div>
 
+      {/* Notes Section */}
+      <div className="ster-notes-section mb-6">
+        <label className="ster-scoring-label flex items-center gap-2">
+          <MessageSquare size={16} />
+          Evaluator Notes
+        </label>
+        <textarea
+          className="ster-notes-textarea"
+          placeholder="Add specific observations, evidence, or notes about this competency..."
+          value={notes}
+          onChange={(e) => onNotesChange(e.target.value)}
+        />
+      </div>
+
       {/* Rubric Section */}
       <div className="ster-rubric-section">
         <label className="ster-scoring-label">Performance Descriptors</label>
@@ -69,20 +83,6 @@ export const STERExpandedCard: React.FC<STERExpandedCardProps> = ({
             </div>
           ))}
         </div>
-      </div>
-
-      {/* Notes Section */}
-      <div className="ster-notes-section">
-        <label className="ster-scoring-label flex items-center gap-2">
-          <MessageSquare size={16} />
-          Evaluator Notes
-        </label>
-        <textarea
-          className="ster-notes-textarea"
-          placeholder="Add specific observations, evidence, or notes about this competency..."
-          value={notes}
-          onChange={(e) => onNotesChange(e.target.value)}
-        />
       </div>
     </div>
   );

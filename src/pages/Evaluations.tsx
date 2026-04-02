@@ -6,6 +6,7 @@ import { DetailsStep } from '../components/steps/DetailsStep';
 import { NotesStep } from '../components/steps/NotesStep';
 import { EvaluateStep } from '../components/steps/EvaluateStep';
 import { STERScores } from '../utils/sterData';
+import { analyzeNotesWithGemini } from '../utils/aiAnalyzer';
 
 type EvaluationStep = 'timer' | 'lesson-plan' | 'details' | 'notes' | 'evaluate';
 
@@ -46,6 +47,31 @@ export const Evaluations: React.FC = () => {
   const [sterScores, setSterScores] = useState<STERScores>({});
   const [selectedSterCategory, setSelectedSterCategory] = useState('LL');
   const [isDraftHydrated, setIsDraftHydrated] = useState(false);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+
+  const handleAiAnalyze = async () => {
+    if (!observationNotes.trim()) {
+      alert('Please add observation notes first before analyzing.');
+      return;
+    }
+    
+    setIsAnalyzing(true);
+    try {
+      const results = await analyzeNotesWithGemini(observationNotes);
+      
+      const newScores = { ...sterScores };
+      results.forEach(result => {
+        newScores[result.id] = { score: result.score, notes: result.notes };
+      });
+      
+      setSterScores(newScores);
+    } catch (error) {
+      console.error('Failed to analyze notes:', error);
+      alert('Failed to analyze notes. Please try again.');
+    } finally {
+      setIsAnalyzing(false);
+    }
+  };
 
   useEffect(() => {
     const savedDraft = localStorage.getItem(EVALUATION_DRAFT_STORAGE_KEY);
@@ -352,6 +378,8 @@ export const Evaluations: React.FC = () => {
             onSterScoresChange={setSterScores}
             selectedCategory={selectedSterCategory}
             onSelectedCategoryChange={setSelectedSterCategory}
+            onAiAnalyze={handleAiAnalyze}
+            isAnalyzing={isAnalyzing}
           />
         )}
 

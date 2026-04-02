@@ -14,6 +14,8 @@ interface EvaluateStepProps {
   onSterScoresChange: (scores: STERScores) => void;
   selectedCategory: string;
   onSelectedCategoryChange: (category: string) => void;
+  onAiAnalyze?: () => void;
+  isAnalyzing?: boolean;
 }
 
 export const EvaluateStep: React.FC<EvaluateStepProps> = ({
@@ -26,6 +28,8 @@ export const EvaluateStep: React.FC<EvaluateStepProps> = ({
   onSterScoresChange,
   selectedCategory,
   onSelectedCategoryChange,
+  onAiAnalyze,
+  isAnalyzing,
 }) => {
   const handleScoreUpdate = (
     competencyId: string,
@@ -45,6 +49,8 @@ export const EvaluateStep: React.FC<EvaluateStepProps> = ({
         selectedCategory={selectedCategory}
         onCategorySelect={onSelectedCategoryChange}
         scores={sterScores}
+        onAiAnalyze={onAiAnalyze}
+        isAnalyzing={isAnalyzing}
       />
 
       {/* Center - STER Scoring Interface */}
