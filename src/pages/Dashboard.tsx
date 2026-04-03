@@ -1,13 +1,17 @@
+// Teacher dashboard showing quick stats and recent evaluations.
+// All data is currently hardcoded mock values — wire to mockApi.getEvaluations() when ready.
+
 import React from 'react';
 import { Navbar } from '../components/Navbar';
 import { Card } from '../components/Card';
 import { useAuth } from '../context/AuthContext';
 import { ArrowRight, CheckCircle } from 'lucide-react';
 
+/** Teacher home screen with stats overview and a recent evaluations list. */
 export const Dashboard: React.FC = () => {
   const { user } = useAuth();
 
-  // Mock recent evaluations
+  // TODO: Replace with real data from mockApi.getEvaluations() once hooked up
   const recentEvaluations = [
     { id: 1, student: 'Emma Rodriguez', date: '2024-03-24', score: 88, status: 'completed' },
     { id: 2, student: 'Marcus Johnson', date: '2024-03-23', score: 92, status: 'completed' },
@@ -23,14 +27,14 @@ export const Dashboard: React.FC = () => {
         <div className="mb-12">
           <h1 className="text-5xl font-black text-primary mb-2">Welcome back, {user?.name || 'Evaluator'}</h1>
           <p className="text-lg text-text mb-8">Track your evaluations and view detailed analytics</p>
-          
+
           <button className="bg-primary text-white px-8 py-4 rounded-lg font-bold text-lg hover:bg-primary-dark transition flex items-center gap-2 shadow-md hover:shadow-lg">
             <span>Start New Evaluation</span>
             <ArrowRight size={20} />
           </button>
         </div>
 
-        {/* Quick Stats */}
+        {/* Quick Stats — hardcoded until real data is connected */}
         <h2 className="text-2xl font-bold text-primary mb-6">Your Quick Stats</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-12">
           <Card>
@@ -66,7 +70,7 @@ export const Dashboard: React.FC = () => {
           </Card>
         </div>
 
-        {/* Recent Evaluations */}
+        {/* Recent Evaluations list */}
         <div>
           <h2 className="text-2xl font-bold text-primary mb-6">Recent Evaluations</h2>
           <Card>

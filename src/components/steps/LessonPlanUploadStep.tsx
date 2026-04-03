@@ -1,3 +1,5 @@
+// Step 2 of the evaluation form — optional lesson plan file upload with sidebar timer controls.
+
 import React from 'react';
 
 interface LessonPlanUploadStepProps {
@@ -6,16 +8,21 @@ interface LessonPlanUploadStepProps {
   onStart: () => void;
   onPause: () => void;
   onRestart: () => void;
+  showTimerDisplay: boolean;
+  onToggleTimerDisplay: () => void;
   selectedFileName: string | null;
   onFileSelect: (fileName: string | null) => void;
 }
 
+/** Lesson plan upload step with persistent timer controls and a hide/show time toggle. */
 export const LessonPlanUploadStep: React.FC<LessonPlanUploadStepProps> = ({
   timerSeconds,
   isRunning,
   onStart,
   onPause,
   onRestart,
+  showTimerDisplay,
+  onToggleTimerDisplay,
   selectedFileName,
   onFileSelect,
 }) => {
@@ -70,10 +77,21 @@ export const LessonPlanUploadStep: React.FC<LessonPlanUploadStepProps> = ({
       {/* Right Sidebar - Timer */}
       <aside className="sidebar-panel timer-panel">
         <div className="timer-card">
-          <h3 className="timer-label">Evaluation Timer</h3>
-          <div className="timer-display-simple">
-            <div className="timer-time-large">{formatTime(timerSeconds)}</div>
+          <div className="timer-header-row">
+            <h3 className="timer-label">Evaluation Timer</h3>
+            <button
+              type="button"
+              className="timer-visibility-toggle"
+              onClick={onToggleTimerDisplay}
+            >
+              {showTimerDisplay ? 'Hide Time' : 'Show Time'}
+            </button>
           </div>
+          {showTimerDisplay && (
+            <div className="timer-display-simple">
+              <div className="timer-time-large">{formatTime(timerSeconds)}</div>
+            </div>
+          )}
           <div className="timer-button-group">
             <button 
               className={`timer-button ${isRunning ? 'pause-button' : 'start-button'}`}

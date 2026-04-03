@@ -1,3 +1,5 @@
+// Step 3 of the evaluation form — collects student name, teacher name, and evaluation date.
+
 import React from 'react';
 
 interface DetailsFormData {
@@ -12,16 +14,21 @@ interface DetailsStepProps {
   onStart: () => void;
   onPause: () => void;
   onRestart: () => void;
+  showTimerDisplay: boolean;
+  onToggleTimerDisplay: () => void;
   details: DetailsFormData;
   onDetailsChange: (details: DetailsFormData) => void;
 }
 
+/** Details step with evaluator info form and persistent timer controls. */
 export const DetailsStep: React.FC<DetailsStepProps> = ({
   timerSeconds,
   isRunning,
   onStart,
   onPause,
   onRestart,
+  showTimerDisplay,
+  onToggleTimerDisplay,
   details,
   onDetailsChange,
 }) => {
@@ -78,10 +85,21 @@ export const DetailsStep: React.FC<DetailsStepProps> = ({
       {/* Right Sidebar - Timer */}
       <aside className="sidebar-panel timer-panel">
         <div className="timer-card">
-          <h3 className="timer-label">Evaluation Timer</h3>
-          <div className="timer-display-simple">
-            <div className="timer-time-large">{formatTime(timerSeconds)}</div>
+          <div className="timer-header-row">
+            <h3 className="timer-label">Evaluation Timer</h3>
+            <button
+              type="button"
+              className="timer-visibility-toggle"
+              onClick={onToggleTimerDisplay}
+            >
+              {showTimerDisplay ? 'Hide Time' : 'Show Time'}
+            </button>
           </div>
+          {showTimerDisplay && (
+            <div className="timer-display-simple">
+              <div className="timer-time-large">{formatTime(timerSeconds)}</div>
+            </div>
+          )}
           <div className="timer-button-group">
             <button 
               className={`timer-button ${isRunning ? 'pause-button' : 'start-button'}`}

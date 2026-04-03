@@ -1,3 +1,6 @@
+// Step 5 of the evaluation form — the main STER scoring interface.
+// Wires STERNavigator (category sidebar), STERScoringInterface (scoring cards), and TimerFloat (sidebar timer).
+
 import React from 'react';
 import { STERNavigator } from '../STER/STERNavigator';
 import { STERScoringInterface } from '../STER/STERScoringInterface';
@@ -10,18 +13,23 @@ interface EvaluateStepProps {
   onStart: () => void;
   onPause: () => void;
   onRestart: () => void;
+  showTimerDisplay: boolean;
+  onToggleTimerDisplay: () => void;
   sterScores: STERScores;
   onSterScoresChange: (scores: STERScores) => void;
   selectedCategory: string;
   onSelectedCategoryChange: (category: string) => void;
 }
 
+/** Final step that scores STER competencies and keeps timer controls visible in the sidebar. */
 export const EvaluateStep: React.FC<EvaluateStepProps> = ({
   timerSeconds,
   isRunning,
   onStart,
   onPause,
   onRestart,
+  showTimerDisplay,
+  onToggleTimerDisplay,
   sterScores,
   onSterScoresChange,
   selectedCategory,
@@ -63,6 +71,8 @@ export const EvaluateStep: React.FC<EvaluateStepProps> = ({
         onStart={onStart}
         onPause={onPause}
         onRestart={onRestart}
+        showTimerDisplay={showTimerDisplay}
+        onToggleTimerDisplay={onToggleTimerDisplay}
         className="ster-timer-sidebar"
       />
     </div>

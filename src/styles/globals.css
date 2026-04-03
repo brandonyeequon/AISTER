@@ -1,10 +1,17 @@
+/* Global styles for AI-STER.
+   Custom CSS classes live here because Tailwind utilities alone can't handle complex
+   multi-property component styles (shadows, transitions, composite layouts).
+   Sections: Base reset → Auth/Login → Navbar → Evaluation layout → Timer → Steps → STER scoring */
+
 @import url('https://rsms.me/inter/inter.css');
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-
+/* ============================================================
+   BASE RESET & ROOT
+   ============================================================ */
 * {
   margin: 0;
   padding: 0;
@@ -1116,6 +1123,45 @@ body {
   font-family: 'Source Sans Pro', sans-serif;
 }
 
+.timer-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.timer-header-row .timer-label {
+  margin: 0;
+  text-align: left;
+}
+
+.timer-visibility-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 12px;
+  border: 1px solid #d1d5db;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #1f2937;
+  font-family: 'Source Sans Pro', sans-serif;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.timer-visibility-toggle:hover {
+  background: #f3f4f6;
+  border-color: #9ca3af;
+}
+
+.timer-visibility-toggle:focus-visible {
+  outline: 2px solid #1c6b3d;
+  outline-offset: 2px;
+}
+
 .timer-display-simple {
   display: flex;
   justify-content: center;
@@ -1919,6 +1965,18 @@ body {
   color: #1c6b3d;
   margin-bottom: 16px;
   letter-spacing: -0.3px;
+}
+
+.ster-timer-sidebar .timer-header-row {
+  margin-bottom: 16px;
+}
+
+.ster-timer-sidebar .timer-header-row .timer-label {
+  margin-bottom: 0;
+}
+
+.ster-timer-sidebar .timer-visibility-toggle {
+  background: #f9fafb;
 }
 
 .ster-timer-sidebar .timer-display-simple {

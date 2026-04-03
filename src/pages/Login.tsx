@@ -1,3 +1,8 @@
+// Authentication page with Login and Sign Up tabs.
+// Login form uses React Hook Form + Zod validation.
+// Auth is fully mocked — any username + password "123456" works.
+// The "Test Evaluations (Dev)" button must be removed before production deployment.
+
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
@@ -6,6 +11,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useAuth } from '../context/AuthContext';
 import { FormInput } from '../components/FormInput';
 
+/** Zod schema for the login form — username required, password minimum 6 chars. */
 const loginSchema = z.object({
   username: z.string().min(1, 'Username is required'),
   password: z.string().min(6, 'Password must be at least 6 characters'),
@@ -13,6 +19,7 @@ const loginSchema = z.object({
 
 type LoginFormData = z.infer<typeof loginSchema>;
 
+/** Login/signup page. Redirects to /evaluations on successful authentication. */
 export const Login: React.FC = () => {
   const navigate = useNavigate();
   const { login, isLoading } = useAuth();
@@ -27,6 +34,7 @@ export const Login: React.FC = () => {
     resolver: zodResolver(loginSchema),
   });
 
+  /** Handles the standard login form submit — passes username as the email to the mock auth. */
   const onSubmit = async (data: LoginFormData) => {
     try {
       setError(null);
@@ -38,6 +46,10 @@ export const Login: React.FC = () => {
     }
   };
 
+  /**
+   * One-click dev login that bypasses the form.
+   * TODO: Remove this button before deploying to production.
+   */
   const handleTestLogin = async () => {
     try {
       setError(null);
@@ -53,11 +65,13 @@ export const Login: React.FC = () => {
     <div className="auth-signin">
       <div className="login-container">
         <div className="login-card">
+          {/* Brand header — UVU logo + AI-STER name */}
           <div className="login-brand">
             <img src="/uvu-2-logo.png" alt="UVU Logo" className="login-logo" />
             <h2 className="brand-name">AI-STER</h2>
           </div>
 
+          {/* Tab switcher — Login / Sign Up */}
           <div className="auth-tabs">
             <button
               onClick={() => setActiveTab('login')}
@@ -103,10 +117,12 @@ export const Login: React.FC = () => {
                 </button>
               </form>
 
+              {/* Helper text for demo / development */}
               <div className="login-demo">Demo: username: anything • password: 123456</div>
 
-              <button 
-                type="button" 
+              {/* Dev-only shortcut — remove before production */}
+              <button
+                type="button"
                 onClick={handleTestLogin}
                 disabled={isLoading}
                 className="test-button"
