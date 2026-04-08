@@ -2,7 +2,8 @@
 // All step state lives here and is passed down as props — steps are conditionally rendered, not routed.
 // The entire form state is auto-saved to localStorage on every change so evaluators can resume later.
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Navbar } from '../components/Navbar';
 import { StepStepper, StepConfig } from '../components/StepStepper';
 import { LessonPlanUploadStep } from '../components/steps/LessonPlanUploadStep';
@@ -10,42 +11,30 @@ import { DetailsStep } from '../components/steps/DetailsStep';
 import { NotesStep } from '../components/steps/NotesStep';
 import { EvaluateStep } from '../components/steps/EvaluateStep';
 import { STERScores } from '../utils/sterData';
-
-/** The five steps of an evaluation, in order. */
-type EvaluationStep = 'timer' | 'lesson-plan' | 'details' | 'notes' | 'evaluate';
-
-/** Form data collected on the Details step. */
-interface EvaluationDetailsForm {
-  studentName: string;
-  teacherName: string;
-  evaluationDate: string;
-}
-
-/** Full shape of the evaluation draft saved to localStorage. */
-interface EvaluationDraft {
-  currentStep: EvaluationStep;
-  timerSeconds: number;
-  isRunning: boolean;
-  lessonPlanFileName: string | null;
-  details: EvaluationDetailsForm;
-  observationNotes: string;
-  notesFileName: string | null;
-  sterScores: STERScores;
-  selectedSterCategory: string;
-}
-
-// Versioned storage key — increment the version suffix if the draft shape changes
-// to avoid hydrating stale/incompatible drafts from localStorage.
-const EVALUATION_DRAFT_STORAGE_KEY = 'aister:evaluation-draft:v1';
-
-const DEFAULT_DETAILS: EvaluationDetailsForm = {
-  studentName: '',
-  teacherName: '',
-  evaluationDate: '',
-};
+import {
+  areAllCompetenciesScored,
+  DEFAULT_EVALUATION_DETAILS,
+  EvaluationDetailsForm,
+  EvaluationRecord,
+  EvaluationStatus,
+  EvaluationStep,
+  getActiveEvaluationId,
+  getEvaluationRecordById,
+  getEvaluationRecords,
+  migrateLegacyDraftIfNeeded,
+  setActiveEvaluationId as setStoredActiveEvaluationId,
+  startNewEvaluationRecord,
+  upsertEvaluationRecord,
+} from '../utils/evaluationRecords';
 
 /** Main evaluation page. Manages all step state and delegates rendering to step components. */
 export const Evaluations: React.FC = () => {
+  const navigate = useNavigate();
+
+  const [activeEvaluationId, setActiveEvaluationId] = useState<string | null>(null);
+  const [evaluationStatus, setEvaluationStatus] = useState<EvaluationStatus>('in-progress');
+  const [createdAt, setCreatedAt] = useState('');
+  const [submittedAt, setSubmittedAt] = useState<string | null>(null);
   const [currentStep, setCurrentStep] = useState<EvaluationStep>('timer');
   const [timerSeconds, setTimerSeconds] = useState(0);
   const [isRunning, setIsRunning] = useState(false);
@@ -54,84 +43,84 @@ export const Evaluations: React.FC = () => {
   const [isPersistentTimerDisplayVisible, setIsPersistentTimerDisplayVisible] = useState(true);
   const [observationNotes, setObservationNotes] = useState('');
   const [lessonPlanFileName, setLessonPlanFileName] = useState<string | null>(null);
-  const [details, setDetails] = useState<EvaluationDetailsForm>(DEFAULT_DETAILS);
+  const [details, setDetails] = useState<EvaluationDetailsForm>(DEFAULT_EVALUATION_DETAILS);
   const [notesFileName, setNotesFileName] = useState<string | null>(null);
   const [sterScores, setSterScores] = useState<STERScores>({});
   const [selectedSterCategory, setSelectedSterCategory] = useState('LL');
+  const [evaluationCounts, setEvaluationCounts] = useState({ completed: 0, inProgress: 0 });
 
   // Flag that prevents the save effect from running before the hydration effect completes.
   // Without this, the first render would overwrite the saved draft with empty defaults.
   const [isDraftHydrated, setIsDraftHydrated] = useState(false);
 
-  // HYDRATION: On mount, restore any previously saved evaluation draft from localStorage.
+  /** Refreshes completed and in-progress counts used by the timer-step statistics panel. */
+  const refreshEvaluationCounts = useCallback(() => {
+    const records = getEvaluationRecords();
+    const completed = records.filter((record) => record.status === 'completed').length;
+    const inProgress = records.filter((record) => record.status === 'in-progress').length;
+
+    setEvaluationCounts((previousCounts) => {
+      if (previousCounts.completed === completed && previousCounts.inProgress === inProgress) {
+        return previousCounts;
+      }
+
+      return { completed, inProgress };
+    });
+  }, []);
+
+  // HYDRATION: On mount, migrate legacy draft storage and restore/create the active evaluation record.
   useEffect(() => {
-    const savedDraft = localStorage.getItem(EVALUATION_DRAFT_STORAGE_KEY);
-    if (!savedDraft) {
-      setIsDraftHydrated(true);
-      return;
-    }
-
     try {
-      const parsedDraft = JSON.parse(savedDraft) as Partial<EvaluationDraft>;
+      migrateLegacyDraftIfNeeded();
+
+      const storedActiveEvaluationId = getActiveEvaluationId();
+      let activeRecord = storedActiveEvaluationId
+        ? getEvaluationRecordById(storedActiveEvaluationId)
+        : null;
+
+      if (!activeRecord) {
+        activeRecord = startNewEvaluationRecord();
+      }
+
       const validSteps: EvaluationStep[] = ['timer', 'lesson-plan', 'details', 'notes', 'evaluate'];
+      const hydratedStep = validSteps.includes(activeRecord.currentStep)
+        ? activeRecord.currentStep
+        : 'timer';
 
-      // Validate each field before applying — the localStorage value could be corrupted or outdated.
-      if (parsedDraft.currentStep && validSteps.includes(parsedDraft.currentStep)) {
-        setCurrentStep(parsedDraft.currentStep);
-      }
-
-      if (typeof parsedDraft.timerSeconds === 'number' && Number.isFinite(parsedDraft.timerSeconds)) {
-        setTimerSeconds(Math.max(0, parsedDraft.timerSeconds));
-      }
-
-      if (typeof parsedDraft.isRunning === 'boolean') {
-        // Don't auto-resume a running timer after page reload — evaluator should choose to restart
-        setIsRunning(parsedDraft.isRunning);
-      }
-
-      if (typeof parsedDraft.observationNotes === 'string') {
-        setObservationNotes(parsedDraft.observationNotes);
-      }
-
-      if (typeof parsedDraft.lessonPlanFileName === 'string' || parsedDraft.lessonPlanFileName === null) {
-        setLessonPlanFileName(parsedDraft.lessonPlanFileName ?? null);
-      }
-
-      if (typeof parsedDraft.notesFileName === 'string' || parsedDraft.notesFileName === null) {
-        setNotesFileName(parsedDraft.notesFileName ?? null);
-      }
-
-      if (parsedDraft.details && typeof parsedDraft.details === 'object') {
-        setDetails({
-          studentName: parsedDraft.details.studentName ?? '',
-          teacherName: parsedDraft.details.teacherName ?? '',
-          evaluationDate: parsedDraft.details.evaluationDate ?? '',
-        });
-      }
-
-      if (parsedDraft.sterScores && typeof parsedDraft.sterScores === 'object') {
-        setSterScores(parsedDraft.sterScores);
-      }
-
-      if (typeof parsedDraft.selectedSterCategory === 'string' && parsedDraft.selectedSterCategory.length > 0) {
-        setSelectedSterCategory(parsedDraft.selectedSterCategory);
-      }
+      setStoredActiveEvaluationId(activeRecord.id);
+      setActiveEvaluationId(activeRecord.id);
+      setEvaluationStatus(activeRecord.status);
+      setCreatedAt(activeRecord.createdAt);
+      setSubmittedAt(activeRecord.submittedAt);
+      setCurrentStep(hydratedStep);
+      setTimerSeconds(Math.max(0, activeRecord.timerSeconds));
+      // Don't auto-resume a running timer after reload — evaluator explicitly starts it.
+      setIsRunning(false);
+      setObservationNotes(activeRecord.observationNotes);
+      setLessonPlanFileName(activeRecord.lessonPlanFileName);
+      setNotesFileName(activeRecord.notesFileName);
+      setDetails(activeRecord.details);
+      setSterScores(activeRecord.sterScores);
+      setSelectedSterCategory(activeRecord.selectedSterCategory || 'LL');
+      refreshEvaluationCounts();
     } catch (error) {
-      console.error('Failed to restore evaluation draft:', error);
+      console.error('Failed to restore active evaluation record:', error);
     } finally {
       // Always mark hydration complete so the save effect can start running
       setIsDraftHydrated(true);
     }
-  }, []);
+  }, [refreshEvaluationCounts]);
 
-  // AUTO-SAVE: Persist the entire draft state to localStorage on every state change.
+  // AUTO-SAVE: Persist the active evaluation record on every state change.
   // Gated on isDraftHydrated to avoid overwriting the draft with empty defaults on first render.
   useEffect(() => {
-    if (!isDraftHydrated) {
+    if (!isDraftHydrated || !activeEvaluationId || !createdAt) {
       return;
     }
 
-    const draftToSave: EvaluationDraft = {
+    const updatedRecord: EvaluationRecord = {
+      id: activeEvaluationId,
+      status: evaluationStatus,
       currentStep,
       timerSeconds,
       isRunning,
@@ -141,11 +130,17 @@ export const Evaluations: React.FC = () => {
       notesFileName,
       sterScores,
       selectedSterCategory,
+      createdAt,
+      updatedAt: new Date().toISOString(),
+      submittedAt,
     };
 
-    localStorage.setItem(EVALUATION_DRAFT_STORAGE_KEY, JSON.stringify(draftToSave));
+    upsertEvaluationRecord(updatedRecord);
   }, [
+    activeEvaluationId,
+    createdAt,
     isDraftHydrated,
+    evaluationStatus,
     currentStep,
     timerSeconds,
     isRunning,
@@ -155,6 +150,7 @@ export const Evaluations: React.FC = () => {
     notesFileName,
     sterScores,
     selectedSterCategory,
+    submittedAt,
   ]);
 
   // TIMER: Increments timerSeconds every second while isRunning is true.
@@ -241,6 +237,41 @@ export const Evaluations: React.FC = () => {
     }
   };
 
+  /** Marks the active record as completed and returns the evaluator to the dashboard history list. */
+  const handleSubmitEvaluation = () => {
+    if (!activeEvaluationId || !createdAt) {
+      return;
+    }
+
+    setIsRunning(false);
+
+    const nowIso = new Date().toISOString();
+    const firstSubmittedAt = submittedAt ?? nowIso;
+
+    const completedRecord: EvaluationRecord = {
+      id: activeEvaluationId,
+      status: 'completed',
+      currentStep,
+      timerSeconds,
+      isRunning: false,
+      lessonPlanFileName,
+      details,
+      observationNotes,
+      notesFileName,
+      sterScores,
+      selectedSterCategory,
+      createdAt,
+      updatedAt: nowIso,
+      submittedAt: firstSubmittedAt,
+    };
+
+    upsertEvaluationRecord(completedRecord);
+    setEvaluationStatus('completed');
+    setSubmittedAt(firstSubmittedAt);
+    refreshEvaluationCounts();
+    navigate('/dashboard');
+  };
+
   /** Step configuration array consumed by StepStepper to render the progress bar. */
   const steps: StepConfig[] = [
     { id: 'timer', label: 'Timer', number: '1', icon: null },
@@ -258,6 +289,8 @@ export const Evaluations: React.FC = () => {
     { number: '4', text: 'Pause only for breaks' },
   ];
 
+  const canSubmitEvaluation = areAllCompetenciesScored(sterScores);
+
   return (
     <div className="evaluation-page">
       <Navbar />
@@ -270,7 +303,9 @@ export const Evaluations: React.FC = () => {
               <div className="evaluation-header-icon">
                 <img src="/images/eval_folders.svg" alt="Evaluation" width="95" height="95" />
               </div>
-              <h1 className="evaluation-title">New Evaluation</h1>
+              <h1 className="evaluation-title">
+                {evaluationStatus === 'completed' ? 'Edit Evaluation' : 'New Evaluation'}
+              </h1>
             </div>
             <p className="evaluation-subtitle">Student Teacher Evaluation Rubric System</p>
           </div>
@@ -324,16 +359,16 @@ export const Evaluations: React.FC = () => {
               </div>
             </div>
 
-            {/* Right Sidebar - Statistics (currently hardcoded; wire to real data later) */}
+            {/* Right Sidebar - Statistics from the shared evaluation record store */}
             <aside className="sidebar-panel statistics-panel">
               <h2 className="sidebar-title">Your Statistics</h2>
               <div className="statistics-item">
-                <div className="stat-number">0</div>
+                <div className="stat-number">{evaluationCounts.completed}</div>
                 <p className="stat-label">Completed</p>
               </div>
               <div className="statistics-item">
-                <div className="stat-number">0</div>
-                <p className="stat-label">Drafts</p>
+                <div className="stat-number">{evaluationCounts.inProgress}</div>
+                <p className="stat-label">In Progress</p>
               </div>
             </aside>
           </div>
@@ -420,8 +455,19 @@ export const Evaluations: React.FC = () => {
             </button>
           )}
           {currentStep === 'evaluate' && (
-            <button className="nav-button submit-button" onClick={goToNextStep}>
-              Submit Evaluation ›
+            <button
+              className={`nav-button submit-button ${
+                canSubmitEvaluation ? '' : 'opacity-60 cursor-not-allowed'
+              }`}
+              onClick={handleSubmitEvaluation}
+              disabled={!canSubmitEvaluation}
+              title={
+                canSubmitEvaluation
+                  ? 'Submit evaluation'
+                  : 'Score all competencies before submitting'
+              }
+            >
+              {evaluationStatus === 'completed' ? 'Save Updates ›' : 'Submit Evaluation ›'}
             </button>
           )}
         </footer>
