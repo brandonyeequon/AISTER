@@ -8,8 +8,8 @@
  *   - CC (Classroom Climate)         — 8 items
  *   - PR (Professional Responsibility) — 7 items
  *
- * Each competency has a 4-level rubric: 0 = Not Met, 1 = Developing, 2 = Proficient, 3 = Distinction.
- * A teacher must score ≥2 on all 35 items to be eligible to pass.
+ * Each competency has a core 4-level rubric: 0 = Not Met, 1 = Developing, 2 = Proficient, 3 = Distinction.
+ * A survey-friendly score of 4 = Not Observed is also supported and treated as a neutral, non-scored value.
  */
 
 /** One level of a competency rubric (e.g., "Proficient"). */
@@ -18,7 +18,7 @@ export interface RubricLevel {
   description: string;
 }
 
-/** A single STER competency with its ID, descriptor, and 4-level rubric. */
+/** A single STER competency with its ID, descriptor, and rubric levels. */
 export interface Competency {
   id: string;
   descriptor: string;
@@ -819,12 +819,13 @@ export const STER_COMPETENCIES: CompetencyCategory = {
   ],
 };
 
-/** Maps a score level (0–3) to its display color. null = unscored (grey). */
+/** Maps a score level (0–4) to its display color. null = unscored (grey). */
 export const SCORE_COLORS = {
   0: '#dc2626', // Red   — Not Met
   1: '#f59e0b', // Amber — Developing
   2: '#eab308', // Yellow — Proficient
   3: '#16a34a', // Green — Distinction
+  4: '#6b7280', // Slate — Not Observed
   null: '#d1d5db', // Grey  — Unscored
 } as const;
 
@@ -834,10 +835,11 @@ export const SCORE_LABELS = {
   1: 'Developing',
   2: 'Proficient',
   3: 'Distinction',
+  4: 'Not Observed',
 } as const;
 
 /** Valid values for a competency score. null means the competency has not been scored yet. */
-export type ScoreLevel = 0 | 1 | 2 | 3 | null;
+export type ScoreLevel = 0 | 1 | 2 | 3 | 4 | null;
 
 /**
  * The scores map stored in Evaluations.tsx state and persisted to localStorage.
@@ -875,26 +877,46 @@ export const getCategoryCompletion = (
 };
 
 /**
- * Checks whether all 35 STER competencies have been scored at Proficient (2) or higher.
- * This is the minimum threshold for a student teacher to be eligible to pass.
+ * Checks whether all 35 STER competencies have been answered and every observed
+ * competency (scores 0-3) is Proficient (2) or higher.
+ *
+ * Score 4 (Not Observed) is treated as neutral:
+ * - It does not block pass eligibility.
+ * - It is excluded from observed-score threshold checks.
  *
  * Note: The function name has a typo ("Elegible" should be "Eligible") — do not fix
  * without updating all call sites.
  */
 export const isElegibleToPass = (scores: STERScores): boolean => {
-  let totalCompetencies = 0;
-  let competenciesAt2Plus = 0;
+  let missingCompetencies = 0;
+  let observedCompetencies = 0;
+  let observedCompetenciesAt2Plus = 0;
 
   Object.values(STER_COMPETENCIES).forEach((category) => {
     category.forEach((competency) => {
-      totalCompetencies++;
       const score = scores[competency.id]?.score;
-      if (score !== null && score >= 2) {
-        competenciesAt2Plus++;
+
+      if (score === null || score === undefined) {
+        missingCompetencies++;
+        return;
+      }
+
+      if (score === 4) {
+        return;
+      }
+
+      observedCompetencies++;
+
+      if (score >= 2) {
+        observedCompetenciesAt2Plus++;
       }
     });
   });
 
-  // Both conditions must be true: all 35 exist in state AND all are ≥2
-  return totalCompetencies === 35 && competenciesAt2Plus === 35;
+  // Submission must be complete and at least one competency must be observed.
+  if (missingCompetencies > 0 || observedCompetencies === 0) {
+    return false;
+  }
+
+  return observedCompetenciesAt2Plus === observedCompetencies;
 };

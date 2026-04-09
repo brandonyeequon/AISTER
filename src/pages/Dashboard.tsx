@@ -140,9 +140,13 @@ const EvaluationReportModal: React.FC<EvaluationReportModalProps> = ({ record, o
                 </p>
               </div>
               <div>
-                <p className="text-xs font-semibold uppercase tracking-wide text-text">Last Updated</p>
-                <p className="text-xl font-bold text-primary">{formatDate(record.updatedAt)}</p>
+                <p className="text-xs font-semibold uppercase tracking-wide text-text">Observed Coverage</p>
+                <p className="text-xl font-bold text-primary">{summary.observedCoveragePercent}%</p>
               </div>
+            </div>
+
+            <div className="mt-3 rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs font-semibold text-text">
+              Not Observed: {summary.notObservedCompetencies} | Last Updated: {formatDate(record.updatedAt)}
             </div>
 
             <div className="mt-5 flex flex-wrap gap-3">
@@ -169,7 +173,13 @@ const EvaluationReportModal: React.FC<EvaluationReportModalProps> = ({ record, o
                 const competencies = getCompetenciesInCategory(categoryCode);
                 const scoredValues = competencies
                   .map((competency) => record.sterScores[competency.id]?.score)
-                  .filter((score): score is Exclude<ScoreLevel, null> => score !== null && score !== undefined);
+                  .filter(
+                    (score): score is Exclude<ScoreLevel, null | 4> =>
+                      score !== null && score !== undefined && score !== 4
+                  );
+                const notObservedInCategory = competencies.filter(
+                  (competency) => record.sterScores[competency.id]?.score === 4
+                ).length;
                 const categoryScore =
                   scoredValues.length === 0
                     ? 0
@@ -179,6 +189,7 @@ const EvaluationReportModal: React.FC<EvaluationReportModalProps> = ({ record, o
                   <div key={categoryCode} className="rounded-lg border border-gray-200 bg-white p-4">
                     <p className="text-sm font-bold text-primary">{categoryCode} - {CATEGORY_LABELS[categoryCode]}</p>
                     <p className="text-sm text-text">{completion.scored}/{completion.total} scored</p>
+                    <p className="text-xs text-text">Not Observed: {notObservedInCategory}</p>
                     <p className="mt-1 text-lg font-black text-primary">{categoryScore}%</p>
                   </div>
                 );

@@ -19,6 +19,8 @@ interface EvaluateStepProps {
   onSterScoresChange: (scores: STERScores) => void;
   selectedCategory: string;
   onSelectedCategoryChange: (category: string) => void;
+  evaluationNotes: string;
+  onEvaluationNotesChange: (notes: string) => void;
 }
 
 /** Final step that scores STER competencies and keeps timer controls visible in the sidebar. */
@@ -34,6 +36,8 @@ export const EvaluateStep: React.FC<EvaluateStepProps> = ({
   onSterScoresChange,
   selectedCategory,
   onSelectedCategoryChange,
+  evaluationNotes,
+  onEvaluationNotesChange,
 }) => {
   const handleScoreUpdate = (
     competencyId: string,
@@ -56,13 +60,28 @@ export const EvaluateStep: React.FC<EvaluateStepProps> = ({
       />
 
       {/* Center - STER Scoring Interface */}
-      {selectedCategory && (
-        <STERScoringInterface
-          category={selectedCategory}
-          scores={sterScores}
-          onScoreUpdate={handleScoreUpdate}
-        />
-      )}
+      <div className="flex min-h-0 flex-1 flex-col gap-5">
+        {selectedCategory && (
+          <STERScoringInterface
+            category={selectedCategory}
+            scores={sterScores}
+            onScoreUpdate={handleScoreUpdate}
+          />
+        )}
+
+        <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm">
+          <h3 className="text-lg font-bold text-primary">Final Evaluation Notes</h3>
+          <p className="mt-1 text-sm text-text">
+            Capture overall evidence and recommendations once all category scores are complete.
+          </p>
+          <textarea
+            value={evaluationNotes}
+            onChange={(event) => onEvaluationNotesChange(event.target.value)}
+            placeholder="Add your final evaluation summary and next-step recommendations..."
+            className="mt-3 min-h-36 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-800 outline-none transition focus:border-primary"
+          />
+        </div>
+      </div>
 
       {/* Right Sidebar - Timer */}
       <TimerFloat

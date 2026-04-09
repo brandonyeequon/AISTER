@@ -36,8 +36,11 @@ export interface EvaluationRecord {
 /** Aggregated values derived from a record's STER scoring data for dashboard/report views. */
 export interface EvaluationSummary {
   scoredCompetencies: number;
+  observedCompetencies: number;
+  notObservedCompetencies: number;
   totalCompetencies: number;
   completionPercent: number;
+  observedCoveragePercent: number;
   overallScorePercent: number;
   isEligibleToPass: boolean;
 }
@@ -272,6 +275,37 @@ export function getScoredCompetencyCount(scores: STERScores): number {
   return scoredCount;
 }
 
+/** Counts how many competencies were observed with rubric-based scores (0-3). */
+export function getObservedCompetencyCount(scores: STERScores): number {
+  let observedCount = 0;
+
+  Object.values(STER_COMPETENCIES).forEach((category) => {
+    category.forEach((competency) => {
+      const score = scores[competency.id]?.score;
+      if (score !== null && score !== undefined && score !== 4) {
+        observedCount += 1;
+      }
+    });
+  });
+
+  return observedCount;
+}
+
+/** Counts how many competencies were explicitly marked Not Observed (score=4). */
+export function getNotObservedCompetencyCount(scores: STERScores): number {
+  let notObservedCount = 0;
+
+  Object.values(STER_COMPETENCIES).forEach((category) => {
+    category.forEach((competency) => {
+      if (scores[competency.id]?.score === 4) {
+        notObservedCount += 1;
+      }
+    });
+  });
+
+  return notObservedCount;
+}
+
 /** Returns true when all STER competencies have been scored (regardless of score level). */
 export function areAllCompetenciesScored(scores: STERScores): boolean {
   return getScoredCompetencyCount(scores) === TOTAL_STER_COMPETENCIES;
@@ -285,7 +319,8 @@ export function getOverallScorePercent(scores: STERScores): number {
   Object.values(STER_COMPETENCIES).forEach((category) => {
     category.forEach((competency) => {
       const competencyScore = scores[competency.id]?.score;
-      if (competencyScore !== null && competencyScore !== undefined) {
+      // Score=4 (Not Observed) is neutral and excluded from denominator.
+      if (competencyScore !== null && competencyScore !== undefined && competencyScore !== 4) {
         earnedPoints += competencyScore;
         maxPoints += 3;
       }
@@ -302,12 +337,18 @@ export function getOverallScorePercent(scores: STERScores): number {
 /** Produces dashboard/report summary metrics from raw score data. */
 export function getEvaluationSummary(record: EvaluationRecord): EvaluationSummary {
   const scoredCompetencies = getScoredCompetencyCount(record.sterScores);
+  const observedCompetencies = getObservedCompetencyCount(record.sterScores);
+  const notObservedCompetencies = getNotObservedCompetencyCount(record.sterScores);
   const completionPercent = Math.round((scoredCompetencies / TOTAL_STER_COMPETENCIES) * 100);
+  const observedCoveragePercent = Math.round((observedCompetencies / TOTAL_STER_COMPETENCIES) * 100);
 
   return {
     scoredCompetencies,
+    observedCompetencies,
+    notObservedCompetencies,
     totalCompetencies: TOTAL_STER_COMPETENCIES,
     completionPercent,
+    observedCoveragePercent,
     overallScorePercent: getOverallScorePercent(record.sterScores),
     isEligibleToPass: isElegibleToPass(record.sterScores),
   };
