@@ -10,6 +10,12 @@ export interface EvaluationDetailsForm {
   studentName: string;
   teacherName: string;
   evaluationDate: string;
+  subjectArea: string;
+  schoolName: string;
+  semester: string;
+  department: string;
+  gradeLevel: string;
+  classSize: string;
 }
 
 /** User-facing lifecycle states for an evaluation record. */
@@ -69,7 +75,23 @@ export const DEFAULT_EVALUATION_DETAILS: EvaluationDetailsForm = {
   studentName: '',
   teacherName: '',
   evaluationDate: '',
+  subjectArea: '',
+  schoolName: '',
+  semester: '',
+  department: '',
+  gradeLevel: '',
+  classSize: '',
 };
+
+/** Returns a complete details payload, filling any missing fields for legacy records. */
+export function normalizeEvaluationDetails(
+  details: Partial<EvaluationDetailsForm> | null | undefined
+): EvaluationDetailsForm {
+  return {
+    ...DEFAULT_EVALUATION_DETAILS,
+    ...(details ?? {}),
+  };
+}
 
 /** Total number of STER competencies across all categories. */
 export const TOTAL_STER_COMPETENCIES = Object.values(STER_COMPETENCIES).reduce(
@@ -233,11 +255,7 @@ export function migrateLegacyDraftIfNeeded(): void {
         typeof legacyDraft.lessonPlanFileName === 'string' || legacyDraft.lessonPlanFileName === null
           ? legacyDraft.lessonPlanFileName ?? null
           : null,
-      details: {
-        studentName: legacyDraft.details?.studentName ?? '',
-        teacherName: legacyDraft.details?.teacherName ?? '',
-        evaluationDate: legacyDraft.details?.evaluationDate ?? '',
-      },
+      details: normalizeEvaluationDetails(legacyDraft.details),
       observationNotes:
         typeof legacyDraft.observationNotes === 'string' ? legacyDraft.observationNotes : '',
       notesFileName:

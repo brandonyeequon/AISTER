@@ -21,6 +21,7 @@ import {
   getEvaluationRecordById,
   getEvaluationRecords,
   migrateLegacyDraftIfNeeded,
+  normalizeEvaluationDetails,
   setActiveEvaluationId as setStoredActiveEvaluationId,
   startNewEvaluationRecord,
   upsertEvaluationRecord,
@@ -101,7 +102,7 @@ export const Evaluations: React.FC = () => {
       setObservationNotes(activeRecord.observationNotes);
       setLessonPlanFileName(activeRecord.lessonPlanFileName);
       setNotesFileName(activeRecord.notesFileName);
-      setDetails(activeRecord.details);
+      setDetails(normalizeEvaluationDetails(activeRecord.details));
       setSterScores(activeRecord.sterScores);
       setSelectedSterCategory(activeRecord.selectedSterCategory || 'LL');
       refreshEvaluationCounts();
