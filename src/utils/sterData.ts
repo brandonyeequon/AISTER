@@ -1,13 +1,24 @@
 /**
- * STER (System for Teacher Evaluation and Retention) Competency Data
- * All 35 competencies across 5 categories
+ * STER (Student Teacher Evaluation Rubric) competency data and scoring utilities.
+ *
+ * Contains all 35 competencies across 5 categories:
+ *   - LL (Learners & Learning)       — 7 items
+ *   - IC (Instructional Clarity)     — 5 items
+ *   - IP (Instructional Practice)    — 8 items
+ *   - CC (Classroom Climate)         — 8 items
+ *   - PR (Professional Responsibility) — 7 items
+ *
+ * Each competency has a core 4-level rubric: 0 = Not Met, 1 = Developing, 2 = Proficient, 3 = Distinction.
+ * A survey-friendly score of 4 = Not Observed is also supported and treated as a neutral, non-scored value.
  */
 
+/** One level of a competency rubric (e.g., "Proficient"). */
 export interface RubricLevel {
   label: string;
   description: string;
 }
 
+/** A single STER competency with its ID, descriptor, and rubric levels. */
 export interface Competency {
   id: string;
   descriptor: string;
@@ -19,10 +30,12 @@ export interface Competency {
   };
 }
 
+/** Maps category codes (e.g., "LL") to their list of competencies. */
 export interface CompetencyCategory {
   [key: string]: Competency[];
 }
 
+/** All 35 STER competencies, keyed by category code. */
 export const STER_COMPETENCIES: CompetencyCategory = {
   LL: [
     {
@@ -806,23 +819,32 @@ export const STER_COMPETENCIES: CompetencyCategory = {
   ],
 };
 
+/** Maps a score level (0–4) to its display color. null = unscored (grey). */
 export const SCORE_COLORS = {
-  0: '#dc2626', // Red - Not Met
-  1: '#f59e0b', // Amber - Developing
-  2: '#eab308', // Yellow - Proficient
-  3: '#16a34a', // Green - Distinction
-  null: '#d1d5db', // Grey - Unscored
+  0: '#dc2626', // Red   — Not Met
+  1: '#f59e0b', // Amber — Developing
+  2: '#eab308', // Yellow — Proficient
+  3: '#16a34a', // Green — Distinction
+  4: '#6b7280', // Slate — Not Observed
+  null: '#d1d5db', // Grey  — Unscored
 } as const;
 
+/** Human-readable labels for each score level. */
 export const SCORE_LABELS = {
   0: 'Not Met',
   1: 'Developing',
   2: 'Proficient',
   3: 'Distinction',
+  4: 'Not Observed',
 } as const;
 
-export type ScoreLevel = 0 | 1 | 2 | 3 | null;
+/** Valid values for a competency score. null means the competency has not been scored yet. */
+export type ScoreLevel = 0 | 1 | 2 | 3 | 4 | null;
 
+/**
+ * The scores map stored in Evaluations.tsx state and persisted to localStorage.
+ * Keyed by competency ID (e.g., "LL1"). Each entry holds a score and optional evaluator notes.
+ */
 export interface STERScores {
   [competencyId: string]: {
     score: ScoreLevel;
@@ -830,35 +852,71 @@ export interface STERScores {
   };
 }
 
-// Helper to get all items in a category
+/**
+ * Returns all competencies for a given category code (e.g., "LL").
+ * Returns an empty array if the category does not exist.
+ */
 export const getCompetenciesInCategory = (category: string): Competency[] => {
   return STER_COMPETENCIES[category] || [];
 };
 
-// Helper to calculate category completion
+/**
+ * Calculates how many competencies in a category have a non-null score.
+ * Used to drive completion badges in STERNavigator and the "View All Items" button label.
+ *
+ * @returns { scored: number, total: number }
+ */
 export const getCategoryCompletion = (
   category: string,
   scores: STERScores
 ): { scored: number; total: number } => {
   const competencies = getCompetenciesInCategory(category);
+  // A competency counts as scored if its score key exists and is not null.
   const scored = competencies.filter((c) => scores[c.id]?.score !== null).length;
   return { scored, total: competencies.length };
 };
 
-// Helper to check if all 35 items meet minimum score (≥2)
+/**
+ * Checks whether all 35 STER competencies have been answered and every observed
+ * competency (scores 0-3) is Proficient (2) or higher.
+ *
+ * Score 4 (Not Observed) is treated as neutral:
+ * - It does not block pass eligibility.
+ * - It is excluded from observed-score threshold checks.
+ *
+ * Note: The function name has a typo ("Elegible" should be "Eligible") — do not fix
+ * without updating all call sites.
+ */
 export const isElegibleToPass = (scores: STERScores): boolean => {
-  let totalCompetencies = 0;
-  let competenciesAt2Plus = 0;
+  let missingCompetencies = 0;
+  let observedCompetencies = 0;
+  let observedCompetenciesAt2Plus = 0;
 
   Object.values(STER_COMPETENCIES).forEach((category) => {
     category.forEach((competency) => {
-      totalCompetencies++;
       const score = scores[competency.id]?.score;
-      if (score !== null && score >= 2) {
-        competenciesAt2Plus++;
+
+      if (score === null || score === undefined) {
+        missingCompetencies++;
+        return;
+      }
+
+      if (score === 4) {
+        return;
+      }
+
+      observedCompetencies++;
+
+      if (score >= 2) {
+        observedCompetenciesAt2Plus++;
       }
     });
   });
 
-  return totalCompetencies === 35 && competenciesAt2Plus === 35;
+  // Submission must be complete and at least one competency must be observed.
+  if (missingCompetencies > 0 || observedCompetencies === 0) {
+    return false;
+  }
+
+  return observedCompetenciesAt2Plus === observedCompetencies;
 };

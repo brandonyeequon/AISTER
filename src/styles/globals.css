@@ -1,10 +1,17 @@
+/* Global styles for AI-STER.
+   Custom CSS classes live here because Tailwind utilities alone can't handle complex
+   multi-property component styles (shadows, transitions, composite layouts).
+   Sections: Base reset → Auth/Login → Navbar → Evaluation layout → Timer → Steps → STER scoring */
+
 @import url('https://rsms.me/inter/inter.css');
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-
+/* ============================================================
+   BASE RESET & ROOT
+   ============================================================ */
 * {
   margin: 0;
   padding: 0;
@@ -1116,6 +1123,45 @@ body {
   font-family: 'Source Sans Pro', sans-serif;
 }
 
+.timer-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.timer-header-row .timer-label {
+  margin: 0;
+  text-align: left;
+}
+
+.timer-visibility-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 12px;
+  border: 1px solid #d1d5db;
+  border-radius: 999px;
+  background: #ffffff;
+  color: #1f2937;
+  font-family: 'Source Sans Pro', sans-serif;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.timer-visibility-toggle:hover {
+  background: #f3f4f6;
+  border-color: #9ca3af;
+}
+
+.timer-visibility-toggle:focus-visible {
+  outline: 2px solid #1c6b3d;
+  outline-offset: 2px;
+}
+
 .timer-display-simple {
   display: flex;
   justify-content: center;
@@ -1184,6 +1230,129 @@ body {
   gap: 20px;
 }
 
+.details-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px 20px;
+}
+
+.details-layout {
+  grid-template-columns: minmax(360px, 400px) minmax(0, 1fr);
+  align-items: start;
+  gap: 22px;
+}
+
+.details-side-card {
+  background: #f0f0f0;
+  border-radius: 20px;
+  padding: 24px 22px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-height: 500px;
+  transition: width 0.2s ease, padding 0.2s ease;
+}
+
+.details-side-header {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 12px;
+}
+
+.details-side-title {
+  margin: 0;
+  font-size: 26px;
+  font-weight: 700;
+  color: #1f2937;
+  font-family: 'Source Sans Pro', sans-serif;
+  line-height: 1.1;
+}
+
+.details-side-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+}
+
+.details-side-summary-row {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.details-side-summary-row span {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: #6b7280;
+  font-weight: 600;
+}
+
+.details-side-summary-row strong {
+  font-size: 14px;
+  color: #1f2937;
+  font-weight: 700;
+  word-break: break-word;
+}
+
+.details-side-timer {
+  margin-top: 4px;
+  max-width: none;
+  width: 100%;
+  text-align: left;
+  padding: 18px 14px;
+  border-radius: 14px;
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.08);
+}
+
+.details-side-timer .timer-label {
+  font-size: 15px;
+}
+
+.details-side-timer .timer-display-simple {
+  padding: 16px 12px;
+  margin-bottom: 12px;
+}
+
+.details-side-timer .timer-time-large {
+  font-size: 34px;
+  letter-spacing: -0.8px;
+}
+
+.details-side-timer .timer-button-group {
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+
+.details-side-timer .timer-button {
+  flex: 1;
+  min-width: 110px;
+  padding: 12px 16px;
+  justify-content: center;
+}
+
+.details-main-content {
+  min-width: 0;
+}
+
+.details-main-card {
+  min-height: 500px;
+}
+
+@media (max-width: 1320px) {
+  .details-layout {
+    grid-template-columns: minmax(320px, 360px) minmax(0, 1fr);
+  }
+}
+
 .form-group {
   display: flex;
   flex-direction: column;
@@ -1210,6 +1379,47 @@ body {
   outline: none;
   border-color: #1c6b3d;
   box-shadow: 0 0 0 3px rgba(28, 107, 61, 0.1);
+}
+
+.form-group select {
+  padding: 12px 16px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  font-size: 14px;
+  font-family: 'Source Sans Pro', sans-serif;
+  background: #ffffff;
+  transition: border-color 0.3s ease;
+}
+
+.form-group select:focus {
+  outline: none;
+  border-color: #1c6b3d;
+  box-shadow: 0 0 0 3px rgba(28, 107, 61, 0.1);
+}
+
+@media (max-width: 900px) {
+  .details-form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .details-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .details-side-card,
+  .details-main-card {
+    min-height: 0;
+  }
+
+  .details-side-timer .timer-button-group {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .details-side-timer .timer-button {
+    min-width: 0;
+    width: 100%;
+  }
 }
 
 /* Notes Textarea */
@@ -1921,6 +2131,18 @@ body {
   letter-spacing: -0.3px;
 }
 
+.ster-timer-sidebar .timer-header-row {
+  margin-bottom: 16px;
+}
+
+.ster-timer-sidebar .timer-header-row .timer-label {
+  margin-bottom: 0;
+}
+
+.ster-timer-sidebar .timer-visibility-toggle {
+  background: #f9fafb;
+}
+
 .ster-timer-sidebar .timer-display-simple {
   background: #f9fafb;
   border-radius: 12px;
@@ -1966,14 +2188,14 @@ body {
 }
 
 .ster-timer-sidebar .timer-button.start-button {
-  background: #1c6b3d;
-  border-color: #1c6b3d;
+  background: #12b981;
+  border-color: #12b981;
   color: #ffffff;
 }
 
 .ster-timer-sidebar .timer-button.start-button:hover {
-  background: #155432;
-  border-color: #0f4c2a;
+  background: #0fa870;
+  border-color: #0fa870;
 }
 
 .ster-timer-sidebar .timer-button.pause-button {

@@ -1,3 +1,5 @@
+// Step 4 of the evaluation form — free-text observation notes with an optional file attachment.
+
 import React from 'react';
 
 interface NotesStepProps {
@@ -6,18 +8,23 @@ interface NotesStepProps {
   onStart: () => void;
   onPause: () => void;
   onRestart: () => void;
+  showTimerDisplay: boolean;
+  onToggleTimerDisplay: () => void;
   notes: string;
   onNotesChange: (notes: string) => void;
   notesFileName: string | null;
   onNotesFileSelect: (fileName: string | null) => void;
 }
 
+/** Notes step with observation textarea, optional attachment, and persistent timer controls. */
 export const NotesStep: React.FC<NotesStepProps> = ({
   timerSeconds,
   isRunning,
   onStart,
   onPause,
   onRestart,
+  showTimerDisplay,
+  onToggleTimerDisplay,
   notes,
   onNotesChange,
   notesFileName,
@@ -78,10 +85,21 @@ export const NotesStep: React.FC<NotesStepProps> = ({
       {/* Right Sidebar - Timer */}
       <aside className="sidebar-panel timer-panel">
         <div className="timer-card">
-          <h3 className="timer-label">Evaluation Timer</h3>
-          <div className="timer-display-simple">
-            <div className="timer-time-large">{formatTime(timerSeconds)}</div>
+          <div className="timer-header-row">
+            <h3 className="timer-label">Evaluation Timer</h3>
+            <button
+              type="button"
+              className="timer-visibility-toggle"
+              onClick={onToggleTimerDisplay}
+            >
+              {showTimerDisplay ? 'Hide Time' : 'Show Time'}
+            </button>
           </div>
+          {showTimerDisplay && (
+            <div className="timer-display-simple">
+              <div className="timer-time-large">{formatTime(timerSeconds)}</div>
+            </div>
+          )}
           <div className="timer-button-group">
             <button 
               className={`timer-button ${isRunning ? 'pause-button' : 'start-button'}`}

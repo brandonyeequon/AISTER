@@ -1,3 +1,4 @@
+// 404 page — rendered for any route that doesn't match a defined path.
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '../components/Button';

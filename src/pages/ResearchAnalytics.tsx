@@ -1,3 +1,7 @@
+// Research analytics page showing evaluation trends, score distributions,
+// evaluator comparisons, and duration patterns using Recharts.
+// All chart data is currently hardcoded — replace with real queries when backend is ready.
+
 import React, { useState } from 'react';
 import { Navbar } from '../components/Navbar';
 import { Card } from '../components/Card';
@@ -15,7 +19,9 @@ import {
 } from 'recharts';
 import { TrendingUp, BarChart3, Clock, CheckCircle2 } from 'lucide-react';
 
-// Mock data for evaluations over time
+// --- Mock chart data (replace with real API queries) ---
+
+/** Weekly evaluation volume — total started vs completed. */
 const evaluationTrendData = [
   { week: 'Week 1', evaluations: 4, completed: 3 },
   { week: 'Week 2', evaluations: 7, completed: 6 },
@@ -25,7 +31,7 @@ const evaluationTrendData = [
   { week: 'Week 6', evaluations: 8, completed: 7 },
 ];
 
-// Mock data for performance distribution
+/** Score distribution buckets (0–10 scale). */
 const performanceDistributionData = [
   { score: '0-2', count: 1 },
   { score: '2-4', count: 3 },
@@ -34,14 +40,14 @@ const performanceDistributionData = [
   { score: '8-10', count: 12 },
 ];
 
-// Mock data for evaluator comparison
+/** Evaluator performance comparison — current user vs team average vs top performer. */
 const evaluatorComparisonData = [
   { name: 'You', value: 87 },
   { name: 'Team Avg', value: 82 },
   { name: 'Top Performer', value: 94 },
 ];
 
-// Mock data for evaluation duration
+/** Average evaluation duration in minutes by day of week. */
 const durationPatternData = [
   { time: 'Mon', duration: 18 },
   { time: 'Tue', duration: 22 },
@@ -52,7 +58,10 @@ const durationPatternData = [
   { time: 'Sun', duration: 17 },
 ];
 
+/** Analytics dashboard with KPI cards and four Recharts visualizations. */
 export const ResearchAnalytics: React.FC = () => {
+  // Date range selection controls which dataset is shown.
+  // Currently has no effect on the mock data — wire to API filtering when backend is ready.
   const [dateRange, setDateRange] = useState('30days');
 
   return (
@@ -62,6 +71,8 @@ export const ResearchAnalytics: React.FC = () => {
       <main className="flex-1 px-8 py-8">
         <div className="flex justify-between items-center mb-8">
           <h1 className="text-4xl font-black text-primary">Research Analytics</h1>
+
+          {/* Date range filter — three options, active one gets filled primary background */}
           <div className="flex gap-3">
             <button
               onClick={() => setDateRange('7days')}
@@ -96,7 +107,7 @@ export const ResearchAnalytics: React.FC = () => {
           </div>
         </div>
 
-        {/* KPI Cards Section */}
+        {/* KPI Summary Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
           <Card>
             <div className="flex justify-between items-start">
@@ -141,11 +152,11 @@ export const ResearchAnalytics: React.FC = () => {
           </Card>
         </div>
 
-        {/* Charts Section */}
+        {/* Charts — Row 1: Trend line + Score distribution bar */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-          {/* Evaluation Trends */}
           <Card>
             <h2 className="text-2xl font-bold text-primary mb-6">Evaluations Over Time</h2>
+            {/* ResponsiveContainer ensures the chart fills its Card width at any viewport */}
             <ResponsiveContainer width="100%" height={300}>
               <LineChart data={evaluationTrendData}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#e0e0e0" />
@@ -179,7 +190,6 @@ export const ResearchAnalytics: React.FC = () => {
             </ResponsiveContainer>
           </Card>
 
-          {/* Performance Distribution */}
           <Card>
             <h2 className="text-2xl font-bold text-primary mb-6">Score Distribution</h2>
             <ResponsiveContainer width="100%" height={300}>
@@ -194,15 +204,15 @@ export const ResearchAnalytics: React.FC = () => {
                     borderRadius: '8px',
                   }}
                 />
+                {/* Rounded top corners on bars via radius prop */}
                 <Bar dataKey="count" fill="#1c6b3d" radius={[8, 8, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </Card>
         </div>
 
-        {/* Evaluator Comparison & Duration Pattern */}
+        {/* Charts — Row 2: Evaluator comparison + Duration pattern */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Evaluator Comparison */}
           <Card>
             <h2 className="text-2xl font-bold text-primary mb-6">Your Performance vs Team</h2>
             <ResponsiveContainer width="100%" height={300}>
@@ -222,7 +232,6 @@ export const ResearchAnalytics: React.FC = () => {
             </ResponsiveContainer>
           </Card>
 
-          {/* Duration Pattern */}
           <Card>
             <h2 className="text-2xl font-bold text-primary mb-6">Evaluation Duration (Minutes)</h2>
             <ResponsiveContainer width="100%" height={300}>
