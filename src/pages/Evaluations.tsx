@@ -8,15 +8,19 @@ import { Navbar } from '../components/Navbar';
 import { StepStepper, StepConfig } from '../components/StepStepper';
 import { LessonPlanUploadStep } from '../components/steps/LessonPlanUploadStep';
 import { DetailsStep } from '../components/steps/DetailsStep';
+import { NotesStep } from '../components/steps/NotesStep';
 import { EvaluateStep } from '../components/steps/EvaluateStep';
 import { STERScores } from '../utils/sterData';
 import {
   areAllCompetenciesScored,
+  CategoryFinalNotes,
+  DEFAULT_CATEGORY_FINAL_NOTES,
   DEFAULT_EVALUATION_DETAILS,
   EvaluationDetailsForm,
   EvaluationRecord,
   EvaluationStatus,
   EvaluationStep,
+  normalizeCategoryFinalNotes,
   getActiveEvaluationId,
   getEvaluationRecordById,
   getEvaluationRecords,
@@ -24,6 +28,7 @@ import {
   normalizeEvaluationDetails,
   setActiveEvaluationId as setStoredActiveEvaluationId,
   startNewEvaluationRecord,
+  STERCategoryCode,
   upsertEvaluationRecord,
 } from '../utils/evaluationRecords';
 
@@ -38,10 +43,13 @@ export const Evaluations: React.FC = () => {
   const [currentStep, setCurrentStep] = useState<EvaluationStep>('timer');
   const [timerSeconds, setTimerSeconds] = useState(0);
   const [isRunning, setIsRunning] = useState(false);
-  // Session-only visibility preference for persistent timer UI on steps 2-4.
+  // Session-only visibility preference for persistent timer UI on steps 2-5.
   // Intentionally not persisted in the draft so it resets on page refresh.
   const [isPersistentTimerDisplayVisible, setIsPersistentTimerDisplayVisible] = useState(true);
   const [observationNotes, setObservationNotes] = useState('');
+  const [categoryFinalNotes, setCategoryFinalNotes] = useState<CategoryFinalNotes>({
+    ...DEFAULT_CATEGORY_FINAL_NOTES,
+  });
   const [lessonPlanFileName, setLessonPlanFileName] = useState<string | null>(null);
   const [details, setDetails] = useState<EvaluationDetailsForm>(DEFAULT_EVALUATION_DETAILS);
   const [notesFileName, setNotesFileName] = useState<string | null>(null);
@@ -82,13 +90,12 @@ export const Evaluations: React.FC = () => {
         activeRecord = startNewEvaluationRecord();
       }
 
-      // Legacy drafts may still point to the removed "notes" step. Normalize those to "evaluate".
-      const validDisplaySteps = ['timer', 'lesson-plan', 'details', 'evaluate'] as const;
-      const hydratedStep: EvaluationStep = activeRecord.currentStep === 'notes'
-        ? 'evaluate'
-        : validDisplaySteps.includes(activeRecord.currentStep as (typeof validDisplaySteps)[number])
-          ? activeRecord.currentStep
-          : 'timer';
+      const validDisplaySteps = ['timer', 'lesson-plan', 'details', 'notes', 'evaluate'] as const;
+      const hydratedStep: EvaluationStep = validDisplaySteps.includes(
+        activeRecord.currentStep as (typeof validDisplaySteps)[number]
+      )
+        ? activeRecord.currentStep
+        : 'timer';
 
       setStoredActiveEvaluationId(activeRecord.id);
       setActiveEvaluationId(activeRecord.id);
@@ -100,6 +107,7 @@ export const Evaluations: React.FC = () => {
       // Don't auto-resume a running timer after reload — evaluator explicitly starts it.
       setIsRunning(false);
       setObservationNotes(activeRecord.observationNotes);
+      setCategoryFinalNotes(normalizeCategoryFinalNotes(activeRecord.categoryFinalNotes));
       setLessonPlanFileName(activeRecord.lessonPlanFileName);
       setNotesFileName(activeRecord.notesFileName);
       setDetails(normalizeEvaluationDetails(activeRecord.details));
@@ -130,6 +138,7 @@ export const Evaluations: React.FC = () => {
       lessonPlanFileName,
       details,
       observationNotes,
+      categoryFinalNotes,
       notesFileName,
       sterScores,
       selectedSterCategory,
@@ -150,6 +159,7 @@ export const Evaluations: React.FC = () => {
     lessonPlanFileName,
     details,
     observationNotes,
+    categoryFinalNotes,
     notesFileName,
     sterScores,
     selectedSterCategory,
@@ -173,6 +183,7 @@ export const Evaluations: React.FC = () => {
     'timer',
     'lesson-plan',
     'details',
+    'notes',
     'evaluate',
   ];
 
@@ -201,9 +212,17 @@ export const Evaluations: React.FC = () => {
     setTimerSeconds(0);
   };
 
-  /** Toggles whether the persistent timer display is visible on steps 2-4. */
+  /** Toggles whether the persistent timer display is visible on steps 2-5. */
   const handleTogglePersistentTimerDisplay = () => {
     setIsPersistentTimerDisplayVisible((prev) => !prev);
+  };
+
+  /** Updates category-level final notes while preserving notes entered for other categories. */
+  const handleCategoryFinalNotesChange = (category: STERCategoryCode, notes: string) => {
+    setCategoryFinalNotes((previousNotes) => ({
+      ...previousNotes,
+      [category]: notes,
+    }));
   };
 
   /**
@@ -215,6 +234,7 @@ export const Evaluations: React.FC = () => {
       'timer',
       'lesson-plan',
       'details',
+      'notes',
       'evaluate',
     ];
     if (validSteps.includes(stepId as EvaluationStep)) {
@@ -258,6 +278,7 @@ export const Evaluations: React.FC = () => {
       lessonPlanFileName,
       details,
       observationNotes,
+      categoryFinalNotes,
       notesFileName,
       sterScores,
       selectedSterCategory,
@@ -278,7 +299,8 @@ export const Evaluations: React.FC = () => {
     { id: 'timer', label: 'Timer', number: '1', icon: null },
     { id: 'lesson-plan', label: 'Lesson Plan', number: '2', icon: null, subText: 'Upload (Optional)' },
     { id: 'details', label: 'Details', number: '3', icon: null, subText: 'Basic Info' },
-    { id: 'evaluate', label: 'Evaluate', number: '4', icon: null, subText: 'Survey + Final Notes' },
+    { id: 'notes', label: 'Observation Notes', number: '4', icon: null, subText: '(Optional)' },
+    { id: 'evaluate', label: 'Evaluate', number: '5', icon: null, subText: 'Survey + Final Notes' },
   ];
 
   /** Quick guide items shown in the left sidebar on the timer step. */
@@ -402,6 +424,22 @@ export const Evaluations: React.FC = () => {
           />
         )}
 
+        {currentStep === 'notes' && (
+          <NotesStep
+            timerSeconds={timerSeconds}
+            isRunning={isRunning}
+            onStart={handleStartTimer}
+            onPause={handlePauseTimer}
+            onRestart={handleRestartTimer}
+            showTimerDisplay={isPersistentTimerDisplayVisible}
+            onToggleTimerDisplay={handleTogglePersistentTimerDisplay}
+            notes={observationNotes}
+            onNotesChange={setObservationNotes}
+            notesFileName={notesFileName}
+            onNotesFileSelect={setNotesFileName}
+          />
+        )}
+
         {currentStep === 'evaluate' && (
           <EvaluateStep
             timerSeconds={timerSeconds}
@@ -415,8 +453,8 @@ export const Evaluations: React.FC = () => {
             onSterScoresChange={setSterScores}
             selectedCategory={selectedSterCategory}
             onSelectedCategoryChange={setSelectedSterCategory}
-            evaluationNotes={observationNotes}
-            onEvaluationNotesChange={setObservationNotes}
+            categoryFinalNotes={categoryFinalNotes}
+            onCategoryFinalNotesChange={handleCategoryFinalNotesChange}
           />
         )}
 

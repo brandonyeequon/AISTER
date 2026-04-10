@@ -21,6 +21,24 @@ export interface EvaluationDetailsForm {
 /** User-facing lifecycle states for an evaluation record. */
 export type EvaluationStatus = 'in-progress' | 'completed';
 
+/** Supported STER category codes used for category-scoped final notes. */
+export type STERCategoryCode = 'LL' | 'IC' | 'IP' | 'CC' | 'PR';
+
+/** Stable category order shared across notes and reporting UIs. */
+export const STER_CATEGORY_ORDER: STERCategoryCode[] = ['LL', 'IC', 'IP', 'CC', 'PR'];
+
+/** Category-level final notes captured in Step 5. */
+export type CategoryFinalNotes = Record<STERCategoryCode, string>;
+
+/** Empty category-level final notes scaffold for new or legacy records. */
+export const DEFAULT_CATEGORY_FINAL_NOTES: CategoryFinalNotes = {
+  LL: '',
+  IC: '',
+  IP: '',
+  CC: '',
+  PR: '',
+};
+
 /** Persisted evaluation record used by Dashboard, report view, and resume flows. */
 export interface EvaluationRecord {
   id: string;
@@ -31,6 +49,7 @@ export interface EvaluationRecord {
   lessonPlanFileName: string | null;
   details: EvaluationDetailsForm;
   observationNotes: string;
+  categoryFinalNotes: CategoryFinalNotes;
   notesFileName: string | null;
   sterScores: STERScores;
   selectedSterCategory: string;
@@ -58,6 +77,7 @@ interface LegacyEvaluationDraft {
   lessonPlanFileName: string | null;
   details: EvaluationDetailsForm;
   observationNotes: string;
+  categoryFinalNotes?: Partial<Record<STERCategoryCode, string>>;
   notesFileName: string | null;
   sterScores: STERScores;
   selectedSterCategory: string;
@@ -90,6 +110,16 @@ export function normalizeEvaluationDetails(
   return {
     ...DEFAULT_EVALUATION_DETAILS,
     ...(details ?? {}),
+  };
+}
+
+/** Returns a complete category-notes payload, filling any missing category keys. */
+export function normalizeCategoryFinalNotes(
+  notes: Partial<Record<STERCategoryCode, string>> | null | undefined
+): CategoryFinalNotes {
+  return {
+    ...DEFAULT_CATEGORY_FINAL_NOTES,
+    ...(notes ?? {}),
   };
 }
 
@@ -140,6 +170,7 @@ export function createEmptyEvaluationRecord(): EvaluationRecord {
     lessonPlanFileName: null,
     details: DEFAULT_EVALUATION_DETAILS,
     observationNotes: '',
+    categoryFinalNotes: { ...DEFAULT_CATEGORY_FINAL_NOTES },
     notesFileName: null,
     sterScores: {},
     selectedSterCategory: 'LL',
@@ -151,7 +182,13 @@ export function createEmptyEvaluationRecord(): EvaluationRecord {
 
 /** Returns all stored evaluation records ordered exactly as persisted. */
 export function getEvaluationRecords(): EvaluationRecord[] {
-  return readStorageValue<EvaluationRecord[]>(EVALUATION_RECORDS_STORAGE_KEY, []);
+  const records = readStorageValue<EvaluationRecord[]>(EVALUATION_RECORDS_STORAGE_KEY, []);
+
+  return records.map((record) => ({
+    ...record,
+    details: normalizeEvaluationDetails(record.details),
+    categoryFinalNotes: normalizeCategoryFinalNotes(record.categoryFinalNotes),
+  }));
 }
 
 /** Persists the entire evaluation record list to localStorage. */
@@ -258,6 +295,7 @@ export function migrateLegacyDraftIfNeeded(): void {
       details: normalizeEvaluationDetails(legacyDraft.details),
       observationNotes:
         typeof legacyDraft.observationNotes === 'string' ? legacyDraft.observationNotes : '',
+      categoryFinalNotes: normalizeCategoryFinalNotes(legacyDraft.categoryFinalNotes),
       notesFileName:
         typeof legacyDraft.notesFileName === 'string' || legacyDraft.notesFileName === null
           ? legacyDraft.notesFileName ?? null

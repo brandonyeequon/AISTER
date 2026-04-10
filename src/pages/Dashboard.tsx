@@ -22,6 +22,8 @@ import {
   getEvaluationRecords,
   getEvaluationSummary,
   migrateLegacyDraftIfNeeded,
+  STER_CATEGORY_ORDER,
+  STERCategoryCode,
   setActiveEvaluationId,
   startNewEvaluationRecord,
   wasEditedAfterSubmission,
@@ -35,9 +37,9 @@ import {
 
 type EvaluationFilter = 'all' | 'in-progress' | 'completed';
 
-const CATEGORY_ORDER = ['LL', 'IC', 'IP', 'CC', 'PR'];
+const CATEGORY_ORDER = STER_CATEGORY_ORDER;
 
-const CATEGORY_LABELS: Record<string, string> = {
+const CATEGORY_LABELS: Record<STERCategoryCode, string> = {
   LL: 'Learners & Learning',
   IC: 'Instructional Clarity',
   IP: 'Instructional Practice',
@@ -205,6 +207,12 @@ const EvaluationReportModal: React.FC<EvaluationReportModalProps> = ({ record, o
                   <h5 className="mb-2 text-base font-bold text-primary">
                     {categoryCode} - {CATEGORY_LABELS[categoryCode]}
                   </h5>
+                  {record.categoryFinalNotes[categoryCode] && (
+                    <div className="mb-3 rounded-md border border-primary/20 bg-primary/5 p-3">
+                      <p className="text-xs font-semibold uppercase tracking-wide text-primary">Category Final Notes</p>
+                      <p className="mt-1 text-sm text-text">{record.categoryFinalNotes[categoryCode]}</p>
+                    </div>
+                  )}
                   <div className="space-y-2">
                     {getCompetenciesInCategory(categoryCode).map((competency) => {
                       const scoreData = record.sterScores[competency.id];
