@@ -3,7 +3,7 @@
 
 import React from 'react';
 import { STERNavigator } from '../STER/STERNavigator';
-import { STERScoringInterface } from '../STER/STERScoringInterface';
+import { STERScoringInterface } from '../STER';
 import { TimerFloat } from '../STER/TimerFloat';
 import { STERScores, ScoreLevel } from '../../utils/sterData';
 import { CategoryFinalNotes, STERCategoryCode, STER_CATEGORY_ORDER } from '../../utils/evaluationRecords';
@@ -28,6 +28,8 @@ interface EvaluateStepProps {
   onSterScoresChange: (scores: STERScores) => void;
   selectedCategory: string;
   onSelectedCategoryChange: (category: string) => void;
+  onAiAnalyze?: () => void;
+  isAnalyzing?: boolean;
   categoryFinalNotes: CategoryFinalNotes;
   onCategoryFinalNotesChange: (category: STERCategoryCode, notes: string) => void;
 }
@@ -45,6 +47,8 @@ export const EvaluateStep: React.FC<EvaluateStepProps> = ({
   onSterScoresChange,
   selectedCategory,
   onSelectedCategoryChange,
+  onAiAnalyze,
+  isAnalyzing,
   categoryFinalNotes,
   onCategoryFinalNotesChange,
 }) => {
@@ -72,7 +76,8 @@ export const EvaluateStep: React.FC<EvaluateStepProps> = ({
       <STERNavigator
         selectedCategory={selectedCategory}
         onCategorySelect={onSelectedCategoryChange}
-        scores={sterScores}
+        onAiAnalyze={onAiAnalyze}
+        isAnalyzing={isAnalyzing}
       />
 
       {/* Center - STER Scoring Interface */}

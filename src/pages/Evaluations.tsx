@@ -11,6 +11,8 @@ import { DetailsStep } from '../components/steps/DetailsStep';
 import { NotesStep } from '../components/steps/NotesStep';
 import { EvaluateStep } from '../components/steps/EvaluateStep';
 import { STERScores } from '../utils/sterData';
+import { analyzeNotesWithGemini } from '../utils/aiAnalyzer';
+
 import {
   areAllCompetenciesScored,
   CategoryFinalNotes,
@@ -60,6 +62,36 @@ export const Evaluations: React.FC = () => {
   // Flag that prevents the save effect from running before the hydration effect completes.
   // Without this, the first render would overwrite the saved draft with empty defaults.
   const [isDraftHydrated, setIsDraftHydrated] = useState(false);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+
+  const handleAiAnalyze = async () => {
+    if (!observationNotes.trim()) {
+      alert('Please add observation notes first before analyzing.');
+      return;
+    }
+
+    setIsAnalyzing(true);
+    try {
+      const results = await analyzeNotesWithGemini(observationNotes);
+
+      if (!Array.isArray(results)) {
+        throw new Error('AI response format was invalid (expected an array of scores).');
+      }
+
+      const newScores = { ...sterScores };
+      results.forEach((result) => {
+        newScores[result.id] = { score: result.score, notes: result.notes };
+      });
+
+      setSterScores(newScores);
+    } catch (error) {
+      console.error('Failed to analyze notes:', error);
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      alert(`Failed to analyze notes. ${message}`);
+    } finally {
+      setIsAnalyzing(false);
+    }
+  };
 
   /** Refreshes completed and in-progress counts used by the timer-step statistics panel. */
   const refreshEvaluationCounts = useCallback(() => {
@@ -453,6 +485,8 @@ export const Evaluations: React.FC = () => {
             onSterScoresChange={setSterScores}
             selectedCategory={selectedSterCategory}
             onSelectedCategoryChange={setSelectedSterCategory}
+            onAiAnalyze={handleAiAnalyze}
+            isAnalyzing={isAnalyzing}
             categoryFinalNotes={categoryFinalNotes}
             onCategoryFinalNotesChange={handleCategoryFinalNotesChange}
           />
