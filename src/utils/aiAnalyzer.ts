@@ -27,8 +27,24 @@ export async function analyzeNotesWithGemini(observationNotes: string): Promise<
     body: { observationNotes, competencies },
   });
 
+  // supabase-js returns FunctionsHttpError for non-2xx responses and hides the body
+  // behind a generic message. Read response.json() to surface the real server error.
   if (error) {
-    throw new Error(error.message || 'AI analysis failed');
+    let serverMessage = '';
+    const response = (error as { context?: { response?: Response } }).context?.response;
+    if (response) {
+      try {
+        const payload = await response.clone().json();
+        serverMessage = payload?.error ?? JSON.stringify(payload);
+      } catch {
+        try {
+          serverMessage = await response.clone().text();
+        } catch {
+          /* ignore */
+        }
+      }
+    }
+    throw new Error(serverMessage || error.message || 'AI analysis failed');
   }
   if (data?.error) {
     throw new Error(data.error);
