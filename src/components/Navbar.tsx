@@ -16,7 +16,7 @@ export const Navbar: React.FC = () => {
 
   /** Navigation tabs. Add or remove entries here to change the navbar links. */
   const navTabs = [
-    { path: '/evaluations', label: 'Evaluation' },
+    { path: '/', label: 'Evaluation' },
     { path: '/dashboard', label: 'Dashboard' },
     { path: '/research', label: 'Research Analytics' },
     { path: '/settings', label: 'Settings' },

@@ -1,8 +1,10 @@
 // Manages authentication state and session persistence for the AISTER app.
-// Auth is currently mocked — any email + password "123456" works.
-// When connecting a real backend, replace the login() body (marked with TODO below).
+// Backed by Supabase — sessions rehydrate from Supabase's own storage and stay
+// in sync via onAuthStateChange.
 
-import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect } from 'react';
+import { supabase } from '../utils/supabase';
+import { Session, User as SupabaseUser } from '@supabase/supabase-js';
 
 /** Shape of an authenticated user. */
 export interface User {
@@ -19,67 +21,114 @@ interface AuthContextType {
   login: (email: string, password: string) => Promise<void>;
   logout: () => void;
   isAuthenticated: boolean;
+  session: Session | null;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+const mapSupabaseUserToLocalUser = (suUser: SupabaseUser): User => ({
+  id: suUser.id,
+  email: suUser.email || '',
+  name: suUser.user_metadata?.full_name || suUser.email?.split('@')[0] || 'User',
+  role: suUser.user_metadata?.role || 'teacher',
+});
 
 /** Wraps the app in auth state. Must be rendered above any component that calls useAuth(). */
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   children,
 }) => {
+  const [session, setSession] = useState<Session | null>(null);
   const [user, setUser] = useState<User | null>(null);
 
   // Start in loading state so ProtectedRoute shows a spinner instead of
-  // immediately redirecting to login before the localStorage check completes.
+  // immediately redirecting to login before the Supabase session check completes.
   const [isLoading, setIsLoading] = useState(true);
 
-  // SESSION RESTORE: On mount, try to rehydrate the user from localStorage.
-  // This keeps evaluators logged in across page refreshes.
   useEffect(() => {
-    try {
-      const storedUser = localStorage.getItem('user');
-      if (storedUser) {
-        setUser(JSON.parse(storedUser));
+    let mounted = true;
+
+    const initializeAuth = async () => {
+      try {
+        const { data: { session: initialSession }, error } = await supabase.auth.getSession();
+
+        if (error) {
+          console.error('Error getting session:', error.message);
+          return;
+        }
+
+        if (mounted) {
+          setSession(initialSession);
+          if (initialSession?.user) {
+            setUser(mapSupabaseUserToLocalUser(initialSession.user));
+          }
+        }
+      } catch (error) {
+        console.error('Failed to initialize auth:', error);
+      } finally {
+        if (mounted) {
+          setIsLoading(false);
+        }
       }
-    } catch (error) {
-      // If the stored value is corrupt JSON, silently discard it and remain logged out.
-      console.error('Failed to restore user from localStorage:', error);
-    } finally {
-      setIsLoading(false);
-    }
+    };
+
+    initializeAuth();
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, newSession) => {
+      if (mounted) {
+        setSession(newSession);
+        if (newSession?.user) {
+          setUser(mapSupabaseUserToLocalUser(newSession.user));
+        } else {
+          setUser(null);
+        }
+      }
+    });
+
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
   }, []);
 
-  /**
-   * Logs in a user by email and password.
-   * Currently mocked — accepts any email, ignores password.
-   * TODO: Replace with actual API call (e.g., Supabase signInWithPassword).
-   */
-  const login = useCallback(async (email: string, _password: string) => {
+  const login = async (email: string, password: string) => {
     setIsLoading(true);
     try {
-      // TODO: Replace with actual API call
-      const mockUser: User = {
-        id: '1',
+      const { data, error } = await supabase.auth.signInWithPassword({
         email,
-        // Derive display name from the email prefix (e.g., "jdoe@uvu.edu" → "jdoe")
-        name: email.split('@')[0],
-        role: 'teacher',
-      };
-      setUser(mockUser);
-      localStorage.setItem('user', JSON.stringify(mockUser));
+        password,
+      });
+
+      if (error) throw error;
+
+      if (data.session) {
+        setSession(data.session);
+        if (data.user) {
+          setUser(mapSupabaseUserToLocalUser(data.user));
+        }
+      }
     } catch (error) {
       console.error('Login failed:', error);
       throw error;
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  };
 
-  /** Clears user state and removes the session from localStorage. */
-  const logout = useCallback(() => {
-    setUser(null);
-    localStorage.removeItem('user');
-  }, []);
+  const logout = async () => {
+    setIsLoading(true);
+    try {
+      const { error } = await supabase.auth.signOut();
+      if (error) throw error;
+      setSession(null);
+      setUser(null);
+    } catch (error) {
+      console.error('Logout failed:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const value: AuthContextType = {
     user,
@@ -89,11 +138,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     // Derive isAuthenticated from user presence rather than a separate boolean
     // to keep them from ever getting out of sync.
     isAuthenticated: !!user,
+    session,
   };
 
-  return (
-    <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
-  );
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
 
 /**

@@ -34,7 +34,7 @@ function App() {
           />
 
           <Route
-            path="/evaluations"
+            path="/"
             element={
               <ProtectedRoute>
                 <Evaluations />

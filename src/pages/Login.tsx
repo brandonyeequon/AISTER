@@ -39,7 +39,7 @@ export const Login: React.FC = () => {
     try {
       setError(null);
       await login(data.username, data.password);
-      navigate('/evaluations');
+      navigate('/');
     } catch (err) {
       setError('Login failed. Please try again.');
       console.error(err);
@@ -54,7 +54,7 @@ export const Login: React.FC = () => {
     try {
       setError(null);
       await login('test@example.com', '123456');
-      navigate('/evaluations');
+      navigate('/');
     } catch (err) {
       setError('Test login failed. Please try again.');
       console.error(err);
