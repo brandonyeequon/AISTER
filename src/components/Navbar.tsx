@@ -14,11 +14,13 @@ export const Navbar: React.FC = () => {
   /** Returns true if the given path matches the current URL — used to highlight the active tab. */
   const isActive = (path: string) => location.pathname === path;
 
-  /** Navigation tabs. Add or remove entries here to change the navbar links. */
+  /** Navigation tabs. Admin-only tabs are filtered out for non-admin users. */
+  const isAdmin = user?.role === 'admin';
   const navTabs = [
     { path: '/', label: 'Evaluation' },
     { path: '/dashboard', label: 'Dashboard' },
-    { path: '/research', label: 'Research Analytics' },
+    ...(isAdmin ? [{ path: '/research', label: 'Research Analytics' }] : []),
+    ...(isAdmin ? [{ path: '/admin', label: 'Admin' }] : []),
     { path: '/settings', label: 'Settings' },
   ];
 

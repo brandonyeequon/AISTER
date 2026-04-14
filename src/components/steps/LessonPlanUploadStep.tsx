@@ -1,6 +1,7 @@
 // Step 2 of the evaluation form — optional lesson plan file upload with sidebar timer controls.
+// The file itself is pushed to Supabase Storage by the parent; this component only reports selections.
 
-import React from 'react';
+import React, { useState } from 'react';
 
 interface LessonPlanUploadStepProps {
   timerSeconds: number;
@@ -11,10 +12,11 @@ interface LessonPlanUploadStepProps {
   showTimerDisplay: boolean;
   onToggleTimerDisplay: () => void;
   selectedFileName: string | null;
-  onFileSelect: (fileName: string | null) => void;
+  hasStoredFile: boolean;
+  onFileUpload: (file: File) => Promise<void>;
+  onDownloadFile: () => Promise<void>;
 }
 
-/** Lesson plan upload step with persistent timer controls and a hide/show time toggle. */
 export const LessonPlanUploadStep: React.FC<LessonPlanUploadStepProps> = ({
   timerSeconds,
   isRunning,
@@ -24,8 +26,12 @@ export const LessonPlanUploadStep: React.FC<LessonPlanUploadStepProps> = ({
   showTimerDisplay,
   onToggleTimerDisplay,
   selectedFileName,
-  onFileSelect,
+  hasStoredFile,
+  onFileUpload,
+  onDownloadFile,
 }) => {
+  const [isUploading, setIsUploading] = useState(false);
+
   const formatTime = (seconds: number) => {
     const hours = Math.floor(seconds / 3600);
     const minutes = Math.floor((seconds % 3600) / 60);
@@ -33,16 +39,20 @@ export const LessonPlanUploadStep: React.FC<LessonPlanUploadStepProps> = ({
     return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
   };
 
-  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
-    if (file) {
-      onFileSelect(file.name);
+    event.target.value = '';
+    if (!file) return;
+    setIsUploading(true);
+    try {
+      await onFileUpload(file);
+    } finally {
+      setIsUploading(false);
     }
   };
 
   return (
     <div className="evaluation-content">
-      {/* Left Sidebar - Upload Instructions */}
       <aside className="sidebar-panel upload-instructions-panel">
         <div className="upload-instruction-icon">↑</div>
         <p className="upload-instruction-text">
@@ -51,7 +61,6 @@ export const LessonPlanUploadStep: React.FC<LessonPlanUploadStepProps> = ({
         <p className="upload-instruction-subtext">PDF, DOC, WORD, etc...</p>
       </aside>
 
-      {/* Center - File Upload Area */}
       <div className="upload-section">
         <div className="upload-card">
           <h2 className="upload-title">Lesson Plan Upload</h2>
@@ -63,18 +72,32 @@ export const LessonPlanUploadStep: React.FC<LessonPlanUploadStepProps> = ({
               onChange={handleFileChange}
               accept=".pdf,.doc,.docx,.xls,.xlsx"
               className="file-input-hidden"
+              disabled={isUploading}
             />
             <div className="upload-content">
               <div className="upload-icon-large">+</div>
               <p className="upload-prompt">
-                {selectedFileName ? `✓ ${selectedFileName}` : 'Click to upload file'}
+                {isUploading
+                  ? 'Uploading…'
+                  : selectedFileName
+                    ? `✓ ${selectedFileName}`
+                    : 'Click to upload file'}
               </p>
             </div>
           </label>
+
+          {hasStoredFile && !isUploading && (
+            <button
+              type="button"
+              onClick={() => void onDownloadFile()}
+              className="mt-3 rounded-md border-2 border-primary px-4 py-2 text-sm font-bold text-primary hover:bg-primary hover:text-white"
+            >
+              Download attachment
+            </button>
+          )}
         </div>
       </div>
 
-      {/* Right Sidebar - Timer */}
       <aside className="sidebar-panel timer-panel">
         <div className="timer-card">
           <div className="timer-header-row">
@@ -93,14 +116,14 @@ export const LessonPlanUploadStep: React.FC<LessonPlanUploadStepProps> = ({
             </div>
           )}
           <div className="timer-button-group">
-            <button 
+            <button
               className={`timer-button ${isRunning ? 'pause-button' : 'start-button'}`}
               onClick={isRunning ? onPause : onStart}
             >
               <div className="button-icon">{isRunning ? '⏸' : '▶'}</div>
               <span className="button-label">{isRunning ? 'Pause' : 'Start'}</span>
             </button>
-            <button 
+            <button
               className="timer-button restart-button"
               onClick={onRestart}
             >

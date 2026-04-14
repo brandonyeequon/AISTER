@@ -1,17 +1,30 @@
 // Root application component. Defines all client-side routes and wraps the tree in AuthProvider.
-// Every route except /login is protected — unauthenticated users are redirected to /login.
+// Non-critical pages are lazy-loaded with React.lazy so the initial bundle only contains
+// the auth shell + whichever route the user lands on.
 
+import { Suspense, lazy } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import { ProtectedRoute } from './components/ProtectedRoute';
+import { LoadingSpinner } from './components/LoadingSpinner';
 import { Login } from './pages/Login';
-import { Dashboard } from './pages/Dashboard';
-import { Evaluations } from './pages/Evaluations';
-import { AdminDashboard } from './pages/AdminDashboard';
-import { ResearchAnalytics } from './pages/ResearchAnalytics';
-import { Settings } from './pages/Settings';
-import { NotFound } from './pages/NotFound';
 import './styles/globals.css';
+
+const Dashboard = lazy(() => import('./pages/Dashboard').then((m) => ({ default: m.Dashboard })));
+const Evaluations = lazy(() =>
+  import('./pages/Evaluations').then((m) => ({ default: m.Evaluations }))
+);
+const AdminDashboard = lazy(() =>
+  import('./pages/AdminDashboard').then((m) => ({ default: m.AdminDashboard }))
+);
+const ResearchAnalytics = lazy(() =>
+  import('./pages/ResearchAnalytics').then((m) => ({ default: m.ResearchAnalytics }))
+);
+const Settings = lazy(() => import('./pages/Settings').then((m) => ({ default: m.Settings })));
+const ResetPassword = lazy(() =>
+  import('./pages/ResetPassword').then((m) => ({ default: m.ResetPassword }))
+);
+const NotFound = lazy(() => import('./pages/NotFound').then((m) => ({ default: m.NotFound })));
 
 function App() {
   return (
@@ -19,62 +32,61 @@ function App() {
     // which requires a Router context to be present.
     <Router>
       <AuthProvider>
-        <Routes>
-          {/* Public route — no auth required */}
-          <Route path="/login" element={<Login />} />
+        <Suspense fallback={<LoadingSpinner />}>
+          <Routes>
+            <Route path="/login" element={<Login />} />
+            <Route path="/reset-password" element={<ResetPassword />} />
 
-          {/* Protected routes — ProtectedRoute redirects to /login if not authenticated */}
-          <Route
-            path="/dashboard"
-            element={
-              <ProtectedRoute>
-                <Dashboard />
-              </ProtectedRoute>
-            }
-          />
+            <Route
+              path="/dashboard"
+              element={
+                <ProtectedRoute>
+                  <Dashboard />
+                </ProtectedRoute>
+              }
+            />
 
-          <Route
-            path="/"
-            element={
-              <ProtectedRoute>
-                <Evaluations />
-              </ProtectedRoute>
-            }
-          />
+            <Route
+              path="/"
+              element={
+                <ProtectedRoute>
+                  <Evaluations />
+                </ProtectedRoute>
+              }
+            />
 
-          <Route
-            path="/admin"
-            element={
-              <ProtectedRoute>
-                <AdminDashboard />
-              </ProtectedRoute>
-            }
-          />
+            <Route
+              path="/admin"
+              element={
+                <ProtectedRoute requireRole={['admin']}>
+                  <AdminDashboard />
+                </ProtectedRoute>
+              }
+            />
 
-          <Route
-            path="/research"
-            element={
-              <ProtectedRoute>
-                <ResearchAnalytics />
-              </ProtectedRoute>
-            }
-          />
+            <Route
+              path="/research"
+              element={
+                <ProtectedRoute requireRole={['admin']}>
+                  <ResearchAnalytics />
+                </ProtectedRoute>
+              }
+            />
 
-          <Route
-            path="/settings"
-            element={
-              <ProtectedRoute>
-                <Settings />
-              </ProtectedRoute>
-            }
-          />
+            <Route
+              path="/settings"
+              element={
+                <ProtectedRoute>
+                  <Settings />
+                </ProtectedRoute>
+              }
+            />
 
-          {/* Default redirect — send root URL to the main evaluation flow */}
-          <Route path="/" element={<Navigate to="/evaluations" replace />} />
+            <Route path="/evaluations" element={<Navigate to="/" replace />} />
 
-          {/* Catch-all — any unmatched path shows the 404 page */}
-          <Route path="*" element={<NotFound />} />
-        </Routes>
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </Suspense>
       </AuthProvider>
     </Router>
   );

@@ -30,8 +30,37 @@ const mapSupabaseUserToLocalUser = (suUser: SupabaseUser): User => ({
   id: suUser.id,
   email: suUser.email || '',
   name: suUser.user_metadata?.full_name || suUser.email?.split('@')[0] || 'User',
-  role: suUser.user_metadata?.role || 'teacher',
+  // Temporary role until the profiles row is fetched; the canonical role lives in `profiles.role`.
+  role: (suUser.user_metadata?.role as User['role']) || 'evaluator',
 });
+
+/** Fetches the canonical role + name from the profiles table for a given auth user. */
+const fetchProfileOverrides = async (
+  suUser: SupabaseUser
+): Promise<Partial<User>> => {
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('full_name, role')
+    .eq('id', suUser.id)
+    .maybeSingle();
+
+  if (error) {
+    console.error('Failed to fetch profile:', error.message);
+    return {};
+  }
+  if (!data) return {};
+
+  const overrides: Partial<User> = {};
+  if (data.role) overrides.role = data.role as User['role'];
+  if (data.full_name) overrides.name = data.full_name;
+  return overrides;
+};
+
+const hydrateUser = async (suUser: SupabaseUser): Promise<User> => {
+  const baseUser = mapSupabaseUserToLocalUser(suUser);
+  const overrides = await fetchProfileOverrides(suUser);
+  return { ...baseUser, ...overrides };
+};
 
 /** Wraps the app in auth state. Must be rendered above any component that calls useAuth(). */
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
@@ -56,11 +85,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
           return;
         }
 
-        if (mounted) {
-          setSession(initialSession);
-          if (initialSession?.user) {
-            setUser(mapSupabaseUserToLocalUser(initialSession.user));
-          }
+        if (!mounted) return;
+        setSession(initialSession);
+        if (initialSession?.user) {
+          // Seed immediately with metadata so UI can render, then overlay profile data.
+          setUser(mapSupabaseUserToLocalUser(initialSession.user));
+          const hydrated = await hydrateUser(initialSession.user);
+          if (mounted) setUser(hydrated);
         }
       } catch (error) {
         console.error('Failed to initialize auth:', error);
@@ -76,13 +107,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, newSession) => {
-      if (mounted) {
-        setSession(newSession);
-        if (newSession?.user) {
-          setUser(mapSupabaseUserToLocalUser(newSession.user));
-        } else {
-          setUser(null);
-        }
+      if (!mounted) return;
+      setSession(newSession);
+      if (newSession?.user) {
+        setUser(mapSupabaseUserToLocalUser(newSession.user));
+        void hydrateUser(newSession.user).then((hydrated) => {
+          if (mounted) setUser(hydrated);
+        });
+      } else {
+        setUser(null);
       }
     });
 
@@ -106,6 +139,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
         setSession(data.session);
         if (data.user) {
           setUser(mapSupabaseUserToLocalUser(data.user));
+          const hydrated = await hydrateUser(data.user);
+          setUser(hydrated);
         }
       }
     } catch (error) {

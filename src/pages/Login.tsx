@@ -1,7 +1,5 @@
-// Authentication page with Login and Sign Up tabs.
-// Login form uses React Hook Form + Zod validation.
-// Auth is fully mocked — any username + password "123456" works.
-// The "Test Evaluations (Dev)" button must be removed before production deployment.
+// Authentication page with Login, Sign Up, and Forgot Password tabs.
+// Forms use React Hook Form + Zod validation. Auth is backed by Supabase.
 
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -10,54 +8,115 @@ import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useAuth } from '../context/AuthContext';
 import { FormInput } from '../components/FormInput';
+import { supabase } from '../utils/supabase';
 
-/** Zod schema for the login form — username required, password minimum 6 chars. */
 const loginSchema = z.object({
-  username: z.string().min(1, 'Username is required'),
+  email: z.string().min(1, 'Email is required').email('Enter a valid email'),
   password: z.string().min(6, 'Password must be at least 6 characters'),
 });
 
 type LoginFormData = z.infer<typeof loginSchema>;
+
+const signupSchema = z.object({
+  fullName: z.string().min(1, 'Full name is required'),
+  email: z.string().min(1, 'Email is required').email('Enter a valid email'),
+  password: z.string().min(6, 'Password must be at least 6 characters'),
+});
+
+type SignupFormData = z.infer<typeof signupSchema>;
+
+const forgotSchema = z.object({
+  email: z.string().min(1, 'Email is required').email('Enter a valid email'),
+});
+
+type ForgotFormData = z.infer<typeof forgotSchema>;
+
+type AuthTab = 'login' | 'signup' | 'forgot';
 
 /** Login/signup page. Redirects to /evaluations on successful authentication. */
 export const Login: React.FC = () => {
   const navigate = useNavigate();
   const { login, isLoading } = useAuth();
   const [error, setError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'login' | 'signup'>('login');
+  const [signupError, setSignupError] = useState<string | null>(null);
+  const [signupSuccess, setSignupSuccess] = useState<string | null>(null);
+  const [signupSubmitting, setSignupSubmitting] = useState(false);
+  const [forgotError, setForgotError] = useState<string | null>(null);
+  const [forgotSuccess, setForgotSuccess] = useState<string | null>(null);
+  const [forgotSubmitting, setForgotSubmitting] = useState(false);
+  const [activeTab, setActiveTab] = useState<AuthTab>('login');
 
-  const {
-    register,
-    handleSubmit,
-    formState: { errors },
-  } = useForm<LoginFormData>({
-    resolver: zodResolver(loginSchema),
-  });
+  const loginForm = useForm<LoginFormData>({ resolver: zodResolver(loginSchema) });
+  const signupForm = useForm<SignupFormData>({ resolver: zodResolver(signupSchema) });
+  const forgotForm = useForm<ForgotFormData>({ resolver: zodResolver(forgotSchema) });
 
-  /** Handles the standard login form submit — passes username as the email to the mock auth. */
-  const onSubmit = async (data: LoginFormData) => {
+  const onLoginSubmit = async (data: LoginFormData) => {
     try {
       setError(null);
-      await login(data.username, data.password);
+      await login(data.email, data.password);
       navigate('/');
     } catch (err) {
-      setError('Login failed. Please try again.');
+      const message = err instanceof Error ? err.message : 'Login failed. Please try again.';
+      setError(message);
       console.error(err);
     }
   };
 
-  /**
-   * One-click dev login that bypasses the form.
-   * TODO: Remove this button before deploying to production.
-   */
-  const handleTestLogin = async () => {
+  const onSignupSubmit = async (data: SignupFormData) => {
+    setSignupError(null);
+    setSignupSuccess(null);
+    setSignupSubmitting(true);
+
     try {
-      setError(null);
-      await login('test@example.com', '123456');
+      const { data: signupData, error: signupErr } = await supabase.auth.signUp({
+        email: data.email,
+        password: data.password,
+        options: {
+          data: { full_name: data.fullName, role: 'evaluator' },
+        },
+      });
+
+      if (signupErr) throw signupErr;
+
+      // If the Supabase project has email confirmation enabled, there is no session yet.
+      if (!signupData.session) {
+        setSignupSuccess(
+          `Account created. Check ${data.email} for a confirmation email, then sign in.`
+        );
+        signupForm.reset();
+        setActiveTab('login');
+        return;
+      }
+
+      // Email confirmation disabled → user is already signed in.
+      await login(data.email, data.password);
       navigate('/');
     } catch (err) {
-      setError('Test login failed. Please try again.');
+      const message = err instanceof Error ? err.message : 'Sign up failed. Please try again.';
+      setSignupError(message);
       console.error(err);
+    } finally {
+      setSignupSubmitting(false);
+    }
+  };
+
+  const onForgotSubmit = async (data: ForgotFormData) => {
+    setForgotError(null);
+    setForgotSuccess(null);
+    setForgotSubmitting(true);
+
+    try {
+      const { error: resetErr } = await supabase.auth.resetPasswordForEmail(data.email, {
+        redirectTo: `${window.location.origin}/reset-password`,
+      });
+      if (resetErr) throw resetErr;
+      setForgotSuccess(`Password reset email sent to ${data.email}. Check your inbox.`);
+      forgotForm.reset();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Could not send reset email.';
+      setForgotError(message);
+    } finally {
+      setForgotSubmitting(false);
     }
   };
 
@@ -65,13 +124,11 @@ export const Login: React.FC = () => {
     <div className="auth-signin">
       <div className="login-container">
         <div className="login-card">
-          {/* Brand header — UVU logo + AI-STER name */}
           <div className="login-brand">
             <img src="/uvu-2-logo.png" alt="UVU Logo" className="login-logo" />
             <h2 className="brand-name">AI-STER</h2>
           </div>
 
-          {/* Tab switcher — Login / Sign Up */}
           <div className="auth-tabs">
             <button
               onClick={() => setActiveTab('login')}
@@ -93,49 +150,121 @@ export const Login: React.FC = () => {
             <>
               <h3 className="login-title">Welcome Back</h3>
 
-              <form onSubmit={handleSubmit(onSubmit)} className="login-form">
+              <form onSubmit={loginForm.handleSubmit(onLoginSubmit)} className="login-form">
                 {error && <div className="login-alert">{error}</div>}
+                {signupSuccess && <div className="login-alert login-alert-success">{signupSuccess}</div>}
 
                 <FormInput
-                  label="Username"
-                  type="text"
-                  placeholder="Enter Your Username"
-                  {...register('username')}
-                  error={errors.username?.message}
+                  label="Email"
+                  type="email"
+                  placeholder="you@uvu.edu"
+                  autoComplete="email"
+                  {...loginForm.register('email')}
+                  error={loginForm.formState.errors.email?.message}
                 />
 
                 <FormInput
                   label="Password"
                   type="password"
                   placeholder="Enter Your Password"
-                  {...register('password')}
-                  error={errors.password?.message}
+                  autoComplete="current-password"
+                  {...loginForm.register('password')}
+                  error={loginForm.formState.errors.password?.message}
                 />
 
                 <button type="submit" disabled={isLoading} className="login-button">
                   {isLoading ? 'Signing in...' : 'Login to Your Account'}
                 </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveTab('forgot');
+                    setForgotError(null);
+                    setForgotSuccess(null);
+                  }}
+                  className="mt-3 text-sm font-semibold text-primary hover:underline"
+                >
+                  Forgot your password?
+                </button>
               </form>
-
-              {/* Helper text for demo / development */}
-              <div className="login-demo">Demo: username: anything • password: 123456</div>
-
-              {/* Dev-only shortcut — remove before production */}
-              <button
-                type="button"
-                onClick={handleTestLogin}
-                disabled={isLoading}
-                className="test-button"
-              >
-                Test Evaluations (Dev)
-              </button>
             </>
           )}
 
           {activeTab === 'signup' && (
             <>
               <h3 className="login-title">Create Account</h3>
-              <p className="signup-note">Sign up functionality coming soon</p>
+
+              <form onSubmit={signupForm.handleSubmit(onSignupSubmit)} className="login-form">
+                {signupError && <div className="login-alert">{signupError}</div>}
+
+                <FormInput
+                  label="Full Name"
+                  type="text"
+                  placeholder="Jane Wolverine"
+                  autoComplete="name"
+                  {...signupForm.register('fullName')}
+                  error={signupForm.formState.errors.fullName?.message}
+                />
+
+                <FormInput
+                  label="Email"
+                  type="email"
+                  placeholder="you@uvu.edu"
+                  autoComplete="email"
+                  {...signupForm.register('email')}
+                  error={signupForm.formState.errors.email?.message}
+                />
+
+                <FormInput
+                  label="Password"
+                  type="password"
+                  placeholder="Create a password"
+                  autoComplete="new-password"
+                  {...signupForm.register('password')}
+                  error={signupForm.formState.errors.password?.message}
+                />
+
+                <button type="submit" disabled={signupSubmitting} className="login-button">
+                  {signupSubmitting ? 'Creating account...' : 'Create Account'}
+                </button>
+              </form>
+            </>
+          )}
+
+          {activeTab === 'forgot' && (
+            <>
+              <h3 className="login-title">Reset Password</h3>
+
+              <form onSubmit={forgotForm.handleSubmit(onForgotSubmit)} className="login-form">
+                {forgotError && <div className="login-alert">{forgotError}</div>}
+                {forgotSuccess && <div className="login-alert login-alert-success">{forgotSuccess}</div>}
+
+                <p className="text-sm text-text mb-2">
+                  Enter your email and we'll send a reset link.
+                </p>
+
+                <FormInput
+                  label="Email"
+                  type="email"
+                  placeholder="you@uvu.edu"
+                  autoComplete="email"
+                  {...forgotForm.register('email')}
+                  error={forgotForm.formState.errors.email?.message}
+                />
+
+                <button type="submit" disabled={forgotSubmitting} className="login-button">
+                  {forgotSubmitting ? 'Sending…' : 'Send Reset Link'}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('login')}
+                  className="mt-3 text-sm font-semibold text-primary hover:underline"
+                >
+                  Back to login
+                </button>
+              </form>
             </>
           )}
         </div>

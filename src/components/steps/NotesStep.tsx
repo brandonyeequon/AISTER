@@ -1,6 +1,6 @@
 // Step 4 of the evaluation form — free-text observation notes with an optional file attachment.
 
-import React from 'react';
+import React, { useState } from 'react';
 
 interface NotesStepProps {
   timerSeconds: number;
@@ -13,10 +13,11 @@ interface NotesStepProps {
   notes: string;
   onNotesChange: (notes: string) => void;
   notesFileName: string | null;
-  onNotesFileSelect: (fileName: string | null) => void;
+  hasStoredFile: boolean;
+  onNotesFileUpload: (file: File) => Promise<void>;
+  onDownloadFile: () => Promise<void>;
 }
 
-/** Notes step with observation textarea, optional attachment, and persistent timer controls. */
 export const NotesStep: React.FC<NotesStepProps> = ({
   timerSeconds,
   isRunning,
@@ -28,8 +29,12 @@ export const NotesStep: React.FC<NotesStepProps> = ({
   notes,
   onNotesChange,
   notesFileName,
-  onNotesFileSelect,
+  hasStoredFile,
+  onNotesFileUpload,
+  onDownloadFile,
 }) => {
+  const [isUploading, setIsUploading] = useState(false);
+
   const formatTime = (seconds: number) => {
     const hours = Math.floor(seconds / 3600);
     const minutes = Math.floor((seconds % 3600) / 60);
@@ -37,16 +42,20 @@ export const NotesStep: React.FC<NotesStepProps> = ({
     return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
   };
 
-  const handleNotesFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleNotesFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
-    if (file) {
-      onNotesFileSelect(file.name);
+    event.target.value = '';
+    if (!file) return;
+    setIsUploading(true);
+    try {
+      await onNotesFileUpload(file);
+    } finally {
+      setIsUploading(false);
     }
   };
 
   return (
     <div className="evaluation-content">
-      {/* Left Sidebar - Instructions */}
       <aside className="sidebar-panel instructions-panel">
         <h3 className="sidebar-title">Notes</h3>
         <p className="instruction-text">Document your observation notes during the evaluation.</p>
@@ -57,19 +66,30 @@ export const NotesStep: React.FC<NotesStepProps> = ({
               accept=".pdf,.doc,.docx,.txt"
               onChange={handleNotesFileChange}
               className="file-input-hidden"
+              disabled={isUploading}
             />
             <div className="notes-upload-content">
               <div className="notes-upload-icon">+</div>
               <p className="notes-upload-title">Optional File Upload</p>
               <p className="notes-upload-subtitle">
-                {notesFileName ?? 'Attach notes from Docs or other software'}
+                {isUploading
+                  ? 'Uploading…'
+                  : (notesFileName ?? 'Attach notes from Docs or other software')}
               </p>
             </div>
           </label>
+          {hasStoredFile && !isUploading && (
+            <button
+              type="button"
+              onClick={() => void onDownloadFile()}
+              className="mt-3 rounded-md border-2 border-primary px-4 py-2 text-sm font-bold text-primary hover:bg-primary hover:text-white"
+            >
+              Download attachment
+            </button>
+          )}
         </div>
       </aside>
 
-      {/* Center - Notes Content */}
       <div className="step-content-center notes-step-center">
         <div className="step-card-container notes-card-container">
           <h2 className="step-section-title">Observation Notes</h2>
@@ -82,7 +102,6 @@ export const NotesStep: React.FC<NotesStepProps> = ({
         </div>
       </div>
 
-      {/* Right Sidebar - Timer */}
       <aside className="sidebar-panel timer-panel">
         <div className="timer-card">
           <div className="timer-header-row">
@@ -101,14 +120,14 @@ export const NotesStep: React.FC<NotesStepProps> = ({
             </div>
           )}
           <div className="timer-button-group">
-            <button 
+            <button
               className={`timer-button ${isRunning ? 'pause-button' : 'start-button'}`}
               onClick={isRunning ? onPause : onStart}
             >
               <div className="button-icon">{isRunning ? '⏸' : '▶'}</div>
               <span className="button-label">{isRunning ? 'Pause' : 'Start'}</span>
             </button>
-            <button 
+            <button
               className="timer-button restart-button"
               onClick={onRestart}
             >

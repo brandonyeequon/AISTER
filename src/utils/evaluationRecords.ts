@@ -1,5 +1,8 @@
-// Local evaluation record store for managing multiple drafts, completed reports, and resume-by-id workflows.
+// Evaluation record store backed by Supabase (one row per evaluation).
+// RLS scopes reads/writes to the authenticated user. Active-evaluation id is kept
+// in localStorage because it is a per-browser UI preference, not data.
 
+import { supabase } from './supabase';
 import { STER_COMPETENCIES, STERScores, isElegibleToPass } from './sterData';
 
 /** Ordered evaluation steps used by the multi-step evaluation form. */
@@ -47,10 +50,12 @@ export interface EvaluationRecord {
   timerSeconds: number;
   isRunning: boolean;
   lessonPlanFileName: string | null;
+  lessonPlanFilePath: string | null;
   details: EvaluationDetailsForm;
   observationNotes: string;
   categoryFinalNotes: CategoryFinalNotes;
   notesFileName: string | null;
+  notesFilePath: string | null;
   sterScores: STERScores;
   selectedSterCategory: string;
   createdAt: string;
@@ -70,25 +75,8 @@ export interface EvaluationSummary {
   isEligibleToPass: boolean;
 }
 
-interface LegacyEvaluationDraft {
-  currentStep: EvaluationStep;
-  timerSeconds: number;
-  isRunning: boolean;
-  lessonPlanFileName: string | null;
-  details: EvaluationDetailsForm;
-  observationNotes: string;
-  categoryFinalNotes?: Partial<Record<STERCategoryCode, string>>;
-  notesFileName: string | null;
-  sterScores: STERScores;
-  selectedSterCategory: string;
-}
-
-/** Versioned storage key for all evaluation records. */
-export const EVALUATION_RECORDS_STORAGE_KEY = 'aister:evaluations:v1';
 /** Storage key that points to the currently active evaluation id for resume/edit flows. */
 export const ACTIVE_EVALUATION_ID_STORAGE_KEY = 'aister:active-evaluation-id:v1';
-/** Legacy single-draft key retained only for one-time migration support. */
-export const LEGACY_EVALUATION_DRAFT_STORAGE_KEY = 'aister:evaluation-draft:v1';
 
 /** Shared default details object used when creating empty records. */
 export const DEFAULT_EVALUATION_DETAILS: EvaluationDetailsForm = {
@@ -129,192 +117,181 @@ export const TOTAL_STER_COMPETENCIES = Object.values(STER_COMPETENCIES).reduce(
   0
 );
 
-/** Reads and parses JSON from localStorage, returning a fallback when unavailable or invalid. */
-function readStorageValue<T>(key: string, fallback: T): T {
-  if (typeof window === 'undefined') {
-    return fallback;
-  }
+// ---------------------------------------------------------------------------
+// DB row ↔ record mapping
+// ---------------------------------------------------------------------------
 
-  const rawValue = window.localStorage.getItem(key);
-  if (!rawValue) {
-    return fallback;
-  }
-
-  try {
-    return JSON.parse(rawValue) as T;
-  } catch (error) {
-    console.error(`Failed to parse localStorage key: ${key}`, error);
-    return fallback;
-  }
+interface EvaluationRow {
+  id: string;
+  evaluator_id: string;
+  status: EvaluationStatus;
+  current_step: EvaluationStep;
+  timer_seconds: number;
+  details: Partial<EvaluationDetailsForm> | null;
+  observation_notes: string | null;
+  category_final_notes: Partial<CategoryFinalNotes> | null;
+  ster_scores: STERScores | null;
+  selected_ster_category: string | null;
+  lesson_plan_file_name: string | null;
+  lesson_plan_file_path: string | null;
+  notes_file_name: string | null;
+  notes_file_path: string | null;
+  created_at: string;
+  updated_at: string;
+  submitted_at: string | null;
 }
 
-/** Generates a unique id for new records using crypto when available with a safe fallback. */
-function createEvaluationId(): string {
-  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
-    return crypto.randomUUID();
-  }
-
-  return `eval_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
-}
-
-/** Creates a new empty in-progress evaluation record with initialized metadata. */
-export function createEmptyEvaluationRecord(): EvaluationRecord {
-  const now = new Date().toISOString();
-
+function rowToRecord(row: EvaluationRow): EvaluationRecord {
   return {
-    id: createEvaluationId(),
-    status: 'in-progress',
-    currentStep: 'timer',
-    timerSeconds: 0,
+    id: row.id,
+    status: row.status,
+    currentStep: row.current_step,
+    timerSeconds: Math.max(0, row.timer_seconds ?? 0),
+    // isRunning is a UI-only concern; DB never persists it — always false on load.
     isRunning: false,
-    lessonPlanFileName: null,
-    details: DEFAULT_EVALUATION_DETAILS,
-    observationNotes: '',
-    categoryFinalNotes: { ...DEFAULT_CATEGORY_FINAL_NOTES },
-    notesFileName: null,
-    sterScores: {},
-    selectedSterCategory: 'LL',
-    createdAt: now,
-    updatedAt: now,
-    submittedAt: null,
+    lessonPlanFileName: row.lesson_plan_file_name,
+    lessonPlanFilePath: row.lesson_plan_file_path,
+    details: normalizeEvaluationDetails(row.details),
+    observationNotes: row.observation_notes ?? '',
+    categoryFinalNotes: normalizeCategoryFinalNotes(row.category_final_notes),
+    notesFileName: row.notes_file_name,
+    notesFilePath: row.notes_file_path,
+    sterScores: row.ster_scores ?? {},
+    selectedSterCategory: row.selected_ster_category ?? 'LL',
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+    submittedAt: row.submitted_at,
   };
 }
 
-/** Returns all stored evaluation records ordered exactly as persisted. */
-export function getEvaluationRecords(): EvaluationRecord[] {
-  const records = readStorageValue<EvaluationRecord[]>(EVALUATION_RECORDS_STORAGE_KEY, []);
-
-  return records.map((record) => ({
-    ...record,
-    details: normalizeEvaluationDetails(record.details),
-    categoryFinalNotes: normalizeCategoryFinalNotes(record.categoryFinalNotes),
-  }));
+function recordToRow(record: EvaluationRecord, evaluatorId: string) {
+  return {
+    id: record.id,
+    evaluator_id: evaluatorId,
+    status: record.status,
+    current_step: record.currentStep,
+    timer_seconds: record.timerSeconds,
+    details: record.details,
+    observation_notes: record.observationNotes,
+    category_final_notes: record.categoryFinalNotes,
+    ster_scores: record.sterScores,
+    selected_ster_category: record.selectedSterCategory,
+    lesson_plan_file_name: record.lessonPlanFileName,
+    lesson_plan_file_path: record.lessonPlanFilePath,
+    notes_file_name: record.notesFileName,
+    notes_file_path: record.notesFilePath,
+    submitted_at: record.submittedAt,
+  };
 }
 
-/** Persists the entire evaluation record list to localStorage. */
-export function saveEvaluationRecords(records: EvaluationRecord[]): void {
-  if (typeof window === 'undefined') {
-    return;
+// ---------------------------------------------------------------------------
+// Query functions (async — backed by Supabase, scoped by RLS)
+// ---------------------------------------------------------------------------
+
+/** Fetches every evaluation the current user is permitted to see, newest first. */
+export async function getEvaluationRecords(): Promise<EvaluationRecord[]> {
+  const { data, error } = await supabase
+    .from('evaluations')
+    .select('*')
+    .order('updated_at', { ascending: false });
+
+  if (error) {
+    console.error('Failed to load evaluations:', error.message);
+    return [];
   }
 
-  window.localStorage.setItem(EVALUATION_RECORDS_STORAGE_KEY, JSON.stringify(records));
+  return (data as EvaluationRow[]).map(rowToRecord);
 }
 
-/** Finds and returns a single evaluation record by id, or null when not found. */
-export function getEvaluationRecordById(recordId: string): EvaluationRecord | null {
-  return getEvaluationRecords().find((record) => record.id === recordId) ?? null;
-}
+/** Fetches a single evaluation by id; returns null if not found or forbidden. */
+export async function getEvaluationRecordById(recordId: string): Promise<EvaluationRecord | null> {
+  const { data, error } = await supabase
+    .from('evaluations')
+    .select('*')
+    .eq('id', recordId)
+    .maybeSingle();
 
-/** Inserts or updates a record by id, preserving all other records. */
-export function upsertEvaluationRecord(record: EvaluationRecord): void {
-  const records = getEvaluationRecords();
-  const existingIndex = records.findIndex((item) => item.id === record.id);
-
-  if (existingIndex >= 0) {
-    records[existingIndex] = record;
-    saveEvaluationRecords(records);
-    return;
+  if (error) {
+    console.error('Failed to load evaluation:', error.message);
+    return null;
   }
 
-  saveEvaluationRecords([record, ...records]);
+  return data ? rowToRecord(data as EvaluationRow) : null;
 }
+
+/** Upserts a record for the given evaluator. Returns the saved record as echoed back by the DB. */
+export async function upsertEvaluationRecord(
+  record: EvaluationRecord,
+  evaluatorId: string
+): Promise<EvaluationRecord | null> {
+  const payload = recordToRow(record, evaluatorId);
+  const { data, error } = await supabase
+    .from('evaluations')
+    .upsert(payload, { onConflict: 'id' })
+    .select()
+    .single();
+
+  if (error) {
+    console.error('Failed to save evaluation:', error.message);
+    return null;
+  }
+
+  return rowToRecord(data as EvaluationRow);
+}
+
+/** Creates a fresh evaluation row for the evaluator and marks it active locally. */
+export async function startNewEvaluationRecord(evaluatorId: string): Promise<EvaluationRecord | null> {
+  const { data, error } = await supabase
+    .from('evaluations')
+    .insert({
+      evaluator_id: evaluatorId,
+      status: 'in-progress',
+      current_step: 'timer',
+      timer_seconds: 0,
+      details: DEFAULT_EVALUATION_DETAILS,
+      observation_notes: '',
+      category_final_notes: DEFAULT_CATEGORY_FINAL_NOTES,
+      ster_scores: {},
+      selected_ster_category: 'LL',
+    })
+    .select()
+    .single();
+
+  if (error) {
+    console.error('Failed to start new evaluation:', error.message);
+    return null;
+  }
+
+  const record = rowToRecord(data as EvaluationRow);
+  setActiveEvaluationId(record.id);
+  return record;
+}
+
+// ---------------------------------------------------------------------------
+// Active-evaluation-id helpers (localStorage — UI preference only)
+// ---------------------------------------------------------------------------
 
 /** Stores the active evaluation id for resume/edit navigation. */
 export function setActiveEvaluationId(recordId: string): void {
-  if (typeof window === 'undefined') {
-    return;
-  }
-
+  if (typeof window === 'undefined') return;
   window.localStorage.setItem(ACTIVE_EVALUATION_ID_STORAGE_KEY, recordId);
 }
 
 /** Returns the active evaluation id, or null when no selection has been made yet. */
 export function getActiveEvaluationId(): string | null {
-  if (typeof window === 'undefined') {
-    return null;
-  }
-
+  if (typeof window === 'undefined') return null;
   return window.localStorage.getItem(ACTIVE_EVALUATION_ID_STORAGE_KEY);
 }
 
 /** Clears the active evaluation id pointer from storage. */
 export function clearActiveEvaluationId(): void {
-  if (typeof window === 'undefined') {
-    return;
-  }
-
+  if (typeof window === 'undefined') return;
   window.localStorage.removeItem(ACTIVE_EVALUATION_ID_STORAGE_KEY);
 }
 
-/** Creates, stores, and marks a brand-new draft as the active evaluation. */
-export function startNewEvaluationRecord(): EvaluationRecord {
-  const newRecord = createEmptyEvaluationRecord();
-  const records = getEvaluationRecords();
-  saveEvaluationRecords([newRecord, ...records]);
-  setActiveEvaluationId(newRecord.id);
-  return newRecord;
-}
-
-/** Migrates the legacy single-draft localStorage shape into the new multi-record store once. */
-export function migrateLegacyDraftIfNeeded(): void {
-  if (typeof window === 'undefined') {
-    return;
-  }
-
-  const existingRecords = getEvaluationRecords();
-  const rawLegacyDraft = window.localStorage.getItem(LEGACY_EVALUATION_DRAFT_STORAGE_KEY);
-
-  if (!rawLegacyDraft) {
-    return;
-  }
-
-  if (existingRecords.length > 0) {
-    window.localStorage.removeItem(LEGACY_EVALUATION_DRAFT_STORAGE_KEY);
-    return;
-  }
-
-  try {
-    const legacyDraft = JSON.parse(rawLegacyDraft) as Partial<LegacyEvaluationDraft>;
-    const migratedRecord = createEmptyEvaluationRecord();
-
-    const safeCurrentStep = legacyDraft.currentStep ?? 'timer';
-    const safeSelectedCategory = legacyDraft.selectedSterCategory ?? 'LL';
-
-    const nextRecord: EvaluationRecord = {
-      ...migratedRecord,
-      currentStep: safeCurrentStep,
-      timerSeconds:
-        typeof legacyDraft.timerSeconds === 'number' && Number.isFinite(legacyDraft.timerSeconds)
-          ? Math.max(0, legacyDraft.timerSeconds)
-          : 0,
-      isRunning: false,
-      lessonPlanFileName:
-        typeof legacyDraft.lessonPlanFileName === 'string' || legacyDraft.lessonPlanFileName === null
-          ? legacyDraft.lessonPlanFileName ?? null
-          : null,
-      details: normalizeEvaluationDetails(legacyDraft.details),
-      observationNotes:
-        typeof legacyDraft.observationNotes === 'string' ? legacyDraft.observationNotes : '',
-      categoryFinalNotes: normalizeCategoryFinalNotes(legacyDraft.categoryFinalNotes),
-      notesFileName:
-        typeof legacyDraft.notesFileName === 'string' || legacyDraft.notesFileName === null
-          ? legacyDraft.notesFileName ?? null
-          : null,
-      sterScores:
-        legacyDraft.sterScores && typeof legacyDraft.sterScores === 'object'
-          ? legacyDraft.sterScores
-          : {},
-      selectedSterCategory: safeSelectedCategory,
-    };
-
-    saveEvaluationRecords([nextRecord]);
-    setActiveEvaluationId(nextRecord.id);
-  } catch (error) {
-    console.error('Failed to migrate legacy evaluation draft:', error);
-  } finally {
-    window.localStorage.removeItem(LEGACY_EVALUATION_DRAFT_STORAGE_KEY);
-  }
-}
+// ---------------------------------------------------------------------------
+// Pure helpers used by dashboards / reports
+// ---------------------------------------------------------------------------
 
 /** Counts how many STER competencies have a non-null score. */
 export function getScoredCompetencyCount(scores: STERScores): number {

@@ -2,7 +2,7 @@
 // All step state lives here and is passed down as props — steps are conditionally rendered, not routed.
 // The entire form state is auto-saved to localStorage on every change so evaluators can resume later.
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Navbar } from '../components/Navbar';
 import { StepStepper, StepConfig } from '../components/StepStepper';
@@ -12,6 +12,12 @@ import { NotesStep } from '../components/steps/NotesStep';
 import { EvaluateStep } from '../components/steps/EvaluateStep';
 import { STERScores } from '../utils/sterData';
 import { analyzeNotesWithGemini } from '../utils/aiAnalyzer';
+import { useAuth } from '../context/AuthContext';
+import {
+  deleteEvaluationFile,
+  getEvaluationFileSignedUrl,
+  uploadEvaluationFile,
+} from '../utils/evaluationFiles';
 
 import {
   areAllCompetenciesScored,
@@ -26,7 +32,6 @@ import {
   getActiveEvaluationId,
   getEvaluationRecordById,
   getEvaluationRecords,
-  migrateLegacyDraftIfNeeded,
   normalizeEvaluationDetails,
   setActiveEvaluationId as setStoredActiveEvaluationId,
   startNewEvaluationRecord,
@@ -37,6 +42,7 @@ import {
 /** Main evaluation page. Manages all step state and delegates rendering to step components. */
 export const Evaluations: React.FC = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
 
   const [activeEvaluationId, setActiveEvaluationId] = useState<string | null>(null);
   const [evaluationStatus, setEvaluationStatus] = useState<EvaluationStatus>('in-progress');
@@ -53,8 +59,10 @@ export const Evaluations: React.FC = () => {
     ...DEFAULT_CATEGORY_FINAL_NOTES,
   });
   const [lessonPlanFileName, setLessonPlanFileName] = useState<string | null>(null);
+  const [lessonPlanFilePath, setLessonPlanFilePath] = useState<string | null>(null);
   const [details, setDetails] = useState<EvaluationDetailsForm>(DEFAULT_EVALUATION_DETAILS);
   const [notesFileName, setNotesFileName] = useState<string | null>(null);
+  const [notesFilePath, setNotesFilePath] = useState<string | null>(null);
   const [sterScores, setSterScores] = useState<STERScores>({});
   const [selectedSterCategory, setSelectedSterCategory] = useState('LL');
   const [evaluationCounts, setEvaluationCounts] = useState({ completed: 0, inProgress: 0 });
@@ -94,8 +102,8 @@ export const Evaluations: React.FC = () => {
   };
 
   /** Refreshes completed and in-progress counts used by the timer-step statistics panel. */
-  const refreshEvaluationCounts = useCallback(() => {
-    const records = getEvaluationRecords();
+  const refreshEvaluationCounts = useCallback(async () => {
+    const records = await getEvaluationRecords();
     const completed = records.filter((record) => record.status === 'completed').length;
     const inProgress = records.filter((record) => record.status === 'in-progress').length;
 
@@ -108,56 +116,71 @@ export const Evaluations: React.FC = () => {
     });
   }, []);
 
-  // HYDRATION: On mount, migrate legacy draft storage and restore/create the active evaluation record.
+  // HYDRATION: On mount (once user is loaded), restore/create the active evaluation record from Supabase.
   useEffect(() => {
-    try {
-      migrateLegacyDraftIfNeeded();
+    if (!user) return;
 
-      const storedActiveEvaluationId = getActiveEvaluationId();
-      let activeRecord = storedActiveEvaluationId
-        ? getEvaluationRecordById(storedActiveEvaluationId)
-        : null;
+    let cancelled = false;
 
-      if (!activeRecord) {
-        activeRecord = startNewEvaluationRecord();
+    (async () => {
+      try {
+        const storedActiveEvaluationId = getActiveEvaluationId();
+        let activeRecord = storedActiveEvaluationId
+          ? await getEvaluationRecordById(storedActiveEvaluationId)
+          : null;
+
+        if (!activeRecord) {
+          activeRecord = await startNewEvaluationRecord(user.id);
+        }
+
+        if (cancelled || !activeRecord) return;
+
+        const validDisplaySteps = ['timer', 'lesson-plan', 'details', 'notes', 'evaluate'] as const;
+        const hydratedStep: EvaluationStep = validDisplaySteps.includes(
+          activeRecord.currentStep as (typeof validDisplaySteps)[number]
+        )
+          ? activeRecord.currentStep
+          : 'timer';
+
+        setStoredActiveEvaluationId(activeRecord.id);
+        setActiveEvaluationId(activeRecord.id);
+        setEvaluationStatus(activeRecord.status);
+        setCreatedAt(activeRecord.createdAt);
+        setSubmittedAt(activeRecord.submittedAt);
+        setCurrentStep(hydratedStep);
+        setTimerSeconds(Math.max(0, activeRecord.timerSeconds));
+        // Don't auto-resume a running timer after reload — evaluator explicitly starts it.
+        setIsRunning(false);
+        setObservationNotes(activeRecord.observationNotes);
+        setCategoryFinalNotes(normalizeCategoryFinalNotes(activeRecord.categoryFinalNotes));
+        setLessonPlanFileName(activeRecord.lessonPlanFileName);
+        setLessonPlanFilePath(activeRecord.lessonPlanFilePath);
+        setNotesFileName(activeRecord.notesFileName);
+        setNotesFilePath(activeRecord.notesFilePath);
+        setDetails(normalizeEvaluationDetails(activeRecord.details));
+        setSterScores(activeRecord.sterScores);
+        setSelectedSterCategory(activeRecord.selectedSterCategory || 'LL');
+        await refreshEvaluationCounts();
+      } catch (error) {
+        console.error('Failed to restore active evaluation record:', error);
+      } finally {
+        if (!cancelled) {
+          setIsDraftHydrated(true);
+        }
       }
+    })();
 
-      const validDisplaySteps = ['timer', 'lesson-plan', 'details', 'notes', 'evaluate'] as const;
-      const hydratedStep: EvaluationStep = validDisplaySteps.includes(
-        activeRecord.currentStep as (typeof validDisplaySteps)[number]
-      )
-        ? activeRecord.currentStep
-        : 'timer';
-
-      setStoredActiveEvaluationId(activeRecord.id);
-      setActiveEvaluationId(activeRecord.id);
-      setEvaluationStatus(activeRecord.status);
-      setCreatedAt(activeRecord.createdAt);
-      setSubmittedAt(activeRecord.submittedAt);
-      setCurrentStep(hydratedStep);
-      setTimerSeconds(Math.max(0, activeRecord.timerSeconds));
-      // Don't auto-resume a running timer after reload — evaluator explicitly starts it.
-      setIsRunning(false);
-      setObservationNotes(activeRecord.observationNotes);
-      setCategoryFinalNotes(normalizeCategoryFinalNotes(activeRecord.categoryFinalNotes));
-      setLessonPlanFileName(activeRecord.lessonPlanFileName);
-      setNotesFileName(activeRecord.notesFileName);
-      setDetails(normalizeEvaluationDetails(activeRecord.details));
-      setSterScores(activeRecord.sterScores);
-      setSelectedSterCategory(activeRecord.selectedSterCategory || 'LL');
-      refreshEvaluationCounts();
-    } catch (error) {
-      console.error('Failed to restore active evaluation record:', error);
-    } finally {
-      // Always mark hydration complete so the save effect can start running
-      setIsDraftHydrated(true);
-    }
-  }, [refreshEvaluationCounts]);
+    return () => {
+      cancelled = true;
+    };
+  }, [refreshEvaluationCounts, user]);
 
   // AUTO-SAVE: Persist the active evaluation record on every state change.
+  // Debounced so we batch fast keystrokes into one Supabase write instead of one per character.
   // Gated on isDraftHydrated to avoid overwriting the draft with empty defaults on first render.
+  const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
-    if (!isDraftHydrated || !activeEvaluationId || !createdAt) {
+    if (!isDraftHydrated || !activeEvaluationId || !createdAt || !user) {
       return;
     }
 
@@ -168,10 +191,12 @@ export const Evaluations: React.FC = () => {
       timerSeconds,
       isRunning,
       lessonPlanFileName,
+      lessonPlanFilePath,
       details,
       observationNotes,
       categoryFinalNotes,
       notesFileName,
+      notesFilePath,
       sterScores,
       selectedSterCategory,
       createdAt,
@@ -179,7 +204,18 @@ export const Evaluations: React.FC = () => {
       submittedAt,
     };
 
-    upsertEvaluationRecord(updatedRecord);
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current);
+    }
+    saveTimeoutRef.current = setTimeout(() => {
+      void upsertEvaluationRecord(updatedRecord, user.id);
+    }, 600);
+
+    return () => {
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current);
+      }
+    };
   }, [
     activeEvaluationId,
     createdAt,
@@ -189,13 +225,16 @@ export const Evaluations: React.FC = () => {
     timerSeconds,
     isRunning,
     lessonPlanFileName,
+    lessonPlanFilePath,
     details,
     observationNotes,
     categoryFinalNotes,
     notesFileName,
+    notesFilePath,
     sterScores,
     selectedSterCategory,
     submittedAt,
+    user,
   ]);
 
   // TIMER: Increments timerSeconds every second while isRunning is true.
@@ -249,6 +288,41 @@ export const Evaluations: React.FC = () => {
     setIsPersistentTimerDisplayVisible((prev) => !prev);
   };
 
+  /** Uploads a file to the evaluation-files bucket and updates the name/path pair on success. */
+  const handleUploadAttachment = async (category: 'lesson-plan' | 'notes', file: File) => {
+    if (!user || !activeEvaluationId) {
+      alert('Cannot upload until the evaluation is ready. Please wait a moment and try again.');
+      return;
+    }
+    const previousPath = category === 'lesson-plan' ? lessonPlanFilePath : notesFilePath;
+    const uploaded = await uploadEvaluationFile(user.id, activeEvaluationId, category, file);
+    if (!uploaded) {
+      alert('Upload failed. Please try again.');
+      return;
+    }
+    if (previousPath && previousPath !== uploaded.path) {
+      void deleteEvaluationFile(previousPath);
+    }
+    if (category === 'lesson-plan') {
+      setLessonPlanFileName(uploaded.name);
+      setLessonPlanFilePath(uploaded.path);
+    } else {
+      setNotesFileName(uploaded.name);
+      setNotesFilePath(uploaded.path);
+    }
+  };
+
+  /** Opens the currently stored attachment in a new tab via short-lived signed URL. */
+  const handleDownloadAttachment = async (path: string | null) => {
+    if (!path) return;
+    const signedUrl = await getEvaluationFileSignedUrl(path);
+    if (!signedUrl) {
+      alert('Could not generate a download link. Please try again.');
+      return;
+    }
+    window.open(signedUrl, '_blank', 'noopener,noreferrer');
+  };
+
   /** Updates category-level final notes while preserving notes entered for other categories. */
   const handleCategoryFinalNotesChange = (category: STERCategoryCode, notes: string) => {
     setCategoryFinalNotes((previousNotes) => ({
@@ -291,12 +365,18 @@ export const Evaluations: React.FC = () => {
   };
 
   /** Marks the active record as completed and returns the evaluator to the dashboard history list. */
-  const handleSubmitEvaluation = () => {
-    if (!activeEvaluationId || !createdAt) {
+  const handleSubmitEvaluation = async () => {
+    if (!activeEvaluationId || !createdAt || !user) {
       return;
     }
 
     setIsRunning(false);
+
+    // Flush any pending debounced save before writing the final completed state.
+    if (saveTimeoutRef.current) {
+      clearTimeout(saveTimeoutRef.current);
+      saveTimeoutRef.current = null;
+    }
 
     const nowIso = new Date().toISOString();
     const firstSubmittedAt = submittedAt ?? nowIso;
@@ -308,10 +388,12 @@ export const Evaluations: React.FC = () => {
       timerSeconds,
       isRunning: false,
       lessonPlanFileName,
+      lessonPlanFilePath,
       details,
       observationNotes,
       categoryFinalNotes,
       notesFileName,
+      notesFilePath,
       sterScores,
       selectedSterCategory,
       createdAt,
@@ -319,10 +401,15 @@ export const Evaluations: React.FC = () => {
       submittedAt: firstSubmittedAt,
     };
 
-    upsertEvaluationRecord(completedRecord);
+    const saved = await upsertEvaluationRecord(completedRecord, user.id);
+    if (!saved) {
+      alert('Failed to submit evaluation. Please try again.');
+      return;
+    }
+
     setEvaluationStatus('completed');
     setSubmittedAt(firstSubmittedAt);
-    refreshEvaluationCounts();
+    await refreshEvaluationCounts();
     navigate('/dashboard');
   };
 
@@ -438,7 +525,9 @@ export const Evaluations: React.FC = () => {
             showTimerDisplay={isPersistentTimerDisplayVisible}
             onToggleTimerDisplay={handleTogglePersistentTimerDisplay}
             selectedFileName={lessonPlanFileName}
-            onFileSelect={setLessonPlanFileName}
+            hasStoredFile={Boolean(lessonPlanFilePath)}
+            onFileUpload={(file) => handleUploadAttachment('lesson-plan', file)}
+            onDownloadFile={() => handleDownloadAttachment(lessonPlanFilePath)}
           />
         )}
 
@@ -468,7 +557,9 @@ export const Evaluations: React.FC = () => {
             notes={observationNotes}
             onNotesChange={setObservationNotes}
             notesFileName={notesFileName}
-            onNotesFileSelect={setNotesFileName}
+            hasStoredFile={Boolean(notesFilePath)}
+            onNotesFileUpload={(file) => handleUploadAttachment('notes', file)}
+            onDownloadFile={() => handleDownloadAttachment(notesFilePath)}
           />
         )}
 

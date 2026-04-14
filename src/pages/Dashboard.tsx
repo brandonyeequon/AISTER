@@ -17,15 +17,14 @@ import {
   Search,
 } from 'lucide-react';
 import {
+  clearActiveEvaluationId,
   EvaluationRecord,
   EvaluationStatus,
   getEvaluationRecords,
   getEvaluationSummary,
-  migrateLegacyDraftIfNeeded,
   STER_CATEGORY_ORDER,
   STERCategoryCode,
   setActiveEvaluationId,
-  startNewEvaluationRecord,
   wasEditedAfterSubmission,
 } from '../utils/evaluationRecords';
 import {
@@ -34,6 +33,7 @@ import {
   SCORE_LABELS,
   ScoreLevel,
 } from '../utils/sterData';
+import { formatDate } from '../utils/formatDate';
 
 type EvaluationFilter = 'all' | 'in-progress' | 'completed';
 
@@ -52,19 +52,6 @@ const FILTER_OPTIONS: Array<{ key: EvaluationFilter; label: string }> = [
   { key: 'in-progress', label: 'In Progress' },
   { key: 'completed', label: 'Completed' },
 ];
-
-/** Formats an ISO timestamp into a short human-readable date. */
-const formatDate = (isoDate: string) => {
-  if (!isoDate) {
-    return 'Not set';
-  }
-
-  return new Date(isoDate).toLocaleDateString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-  });
-};
 
 /** Returns the status badge classes used in rows and report headers. */
 const getStatusBadgeClassName = (status: EvaluationStatus) => {
@@ -255,37 +242,35 @@ export const Dashboard: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedReportId, setSelectedReportId] = useState<string | null>(null);
 
-  /** Loads records from localStorage and keeps newest updates first. */
-  const refreshRecords = useCallback(() => {
-    migrateLegacyDraftIfNeeded();
-    const nextRecords = getEvaluationRecords().sort(
-      (left, right) => new Date(right.updatedAt).getTime() - new Date(left.updatedAt).getTime()
-    );
+  /** Loads records from Supabase; the server query is already ordered newest-first. */
+  const refreshRecords = useCallback(async () => {
+    const nextRecords = await getEvaluationRecords();
     setRecords(nextRecords);
   }, []);
 
   // Sync on mount and when the window regains focus so dashboard reflects recent edits instantly.
   useEffect(() => {
-    refreshRecords();
-    window.addEventListener('focus', refreshRecords);
-    window.addEventListener('storage', refreshRecords);
-
+    void refreshRecords();
+    const onFocus = () => {
+      void refreshRecords();
+    };
+    window.addEventListener('focus', onFocus);
     return () => {
-      window.removeEventListener('focus', refreshRecords);
-      window.removeEventListener('storage', refreshRecords);
+      window.removeEventListener('focus', onFocus);
     };
   }, [refreshRecords]);
 
   /** Creates a brand-new draft and opens the evaluation workflow immediately. */
   const handleStartNewEvaluation = () => {
-    startNewEvaluationRecord();
-    navigate('/evaluations');
+    // Clear the active-id pointer; Evaluations.tsx will insert a new row on mount.
+    clearActiveEvaluationId();
+    navigate('/');
   };
 
   /** Opens an existing record for resume/edit by setting it as active first. */
   const handleOpenEvaluation = (recordId: string) => {
     setActiveEvaluationId(recordId);
-    navigate('/evaluations');
+    navigate('/');
   };
 
   /** Opens a completed evaluation's report modal. */
