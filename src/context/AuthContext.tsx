@@ -5,6 +5,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { supabase } from '../utils/supabase';
 import { Session, User as SupabaseUser } from '@supabase/supabase-js';
+import { clearActiveEvaluationId } from '../utils/evaluationRecords';
 
 /** Shape of an authenticated user. */
 export interface User {
@@ -158,6 +159,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       if (error) throw error;
       setSession(null);
       setUser(null);
+      // Clear the per-browser active-evaluation pointer so the next user on
+      // this device doesn't land on the previous user's in-progress draft.
+      clearActiveEvaluationId();
     } catch (error) {
       console.error('Logout failed:', error);
     } finally {

@@ -35,6 +35,7 @@ import {
   normalizeEvaluationDetails,
   setActiveEvaluationId as setStoredActiveEvaluationId,
   startNewEvaluationRecord,
+  STER_CATEGORY_ORDER,
   STERCategoryCode,
   upsertEvaluationRecord,
 } from '../utils/evaluationRecords';
@@ -81,17 +82,42 @@ export const Evaluations: React.FC = () => {
     setIsAnalyzing(true);
     try {
       const results = await analyzeNotesWithGemini(observationNotes);
+      console.log('AI analysis results:', results);
 
       if (!Array.isArray(results)) {
         throw new Error('AI response format was invalid (expected an array of scores).');
       }
 
+      if (results.length === 0) {
+        alert(
+          'AI couldn\'t score any competencies from these notes.\n\n' +
+          'The observation notes may be too thin or generic. Add more specific evidence ' +
+          '(what the teacher said/did, how students responded) and try again.'
+        );
+        return;
+      }
+
       const newScores = { ...sterScores };
+      const scoredCategories = new Set<string>();
       results.forEach((result) => {
         newScores[result.id] = { score: result.score, notes: result.notes };
+        const categoryCode = result.id.slice(0, 2);
+        if (STER_CATEGORY_ORDER.includes(categoryCode as STERCategoryCode)) {
+          scoredCategories.add(categoryCode);
+        }
       });
 
       setSterScores(newScores);
+
+      const orderedCategories = STER_CATEGORY_ORDER.filter((c) => scoredCategories.has(c));
+      if (orderedCategories.length > 0 && !scoredCategories.has(selectedSterCategory)) {
+        setSelectedSterCategory(orderedCategories[0]);
+      }
+
+      alert(
+        `Scored ${results.length} competenc${results.length === 1 ? 'y' : 'ies'} across ` +
+        `${orderedCategories.join(', ')}.`
+      );
     } catch (error) {
       console.error('Failed to analyze notes:', error);
       const message = error instanceof Error ? error.message : 'Unknown error';

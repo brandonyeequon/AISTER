@@ -2,6 +2,11 @@
 // Input : { observationNotes: string, competencies: Array<{ id, descriptor, rubric: {0,1,2,3} }> }
 // Output: Array<{ id: string, score: 0|1|2|3, notes: string }>
 // Secrets: GEMINI_API_KEY (set with `supabase secrets set GEMINI_API_KEY=...`)
+//
+// Deployed with verify_jwt=false: the Functions gateway was rejecting this project's
+// ES256-signed session tokens as "Invalid JWT". This function is a stateless Gemini
+// proxy with no DB access, so gateway JWT verification doesn't add meaningful
+// protection — the anon apikey is still required to route the request.
 
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 
@@ -62,7 +67,7 @@ Return ONLY a valid JSON array of objects with this structure (no markdown tags,
   { "id": "LL1", "score": 2, "notes": "evidence from notes..." }
 ]`;
 
-    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
+    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${apiKey}`;
     const upstream = await fetch(geminiUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
