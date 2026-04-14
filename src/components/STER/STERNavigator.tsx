@@ -11,6 +11,7 @@ export interface STERNavigatorProps {
       notes: string;
     };
   };
+  onAIAnalysisClick?: () => void;
 }
 
 const CATEGORY_LABELS: { [key: string]: string } = {
@@ -27,6 +28,7 @@ export const STERNavigator: React.FC<STERNavigatorProps> = ({
   selectedCategory,
   onCategorySelect,
   scores,
+  onAIAnalysisClick,
 }) => {
   const getCategoryCompletion = (category: string) => {
     const competencies = STER_COMPETENCIES[category] || [];
@@ -72,7 +74,7 @@ export const STERNavigator: React.FC<STERNavigatorProps> = ({
       </div>
 
       {allCategoriesComplete && (
-        <button className="ster-ai-button">
+        <button className="ster-ai-button" onClick={onAIAnalysisClick}>
           <Zap size={18} />
           <span>AI Analysis</span>
         </button>

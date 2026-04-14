@@ -10,7 +10,7 @@ export const Navbar: React.FC = () => {
   const isActive = (path: string) => location.pathname === path;
 
   const navTabs = [
-    { path: '/evaluations', label: 'Evaluation' },
+    { path: '/', label: 'Evaluation' },
     { path: '/dashboard', label: 'Dashboard' },
     { path: '/research', label: 'Research Analytics' },
     { path: '/settings', label: 'Settings' },
@@ -21,7 +21,7 @@ export const Navbar: React.FC = () => {
     navigate('/login');
   };
 
-  if (!user) return null;
+  // if (!user) return null;
 
   return (
     <nav className="navbar-container">

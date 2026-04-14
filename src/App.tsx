@@ -27,7 +27,7 @@ function App() {
           />
           
           <Route
-            path="/evaluations"
+            path="/"
             element={
               <ProtectedRoute>
                 <Evaluations />
@@ -62,7 +62,6 @@ function App() {
             }
           />
           
-          <Route path="/" element={<Navigate to="/evaluations" replace />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </AuthProvider>

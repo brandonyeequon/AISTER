@@ -1,4 +1,6 @@
-import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect } from 'react';
+import { supabase } from '../utils/supabase';
+import { Session, User as SupabaseUser } from '@supabase/supabase-js';
 
 export interface User {
   id: string;
@@ -13,6 +15,7 @@ interface AuthContextType {
   login: (email: string, password: string) => Promise<void>;
   logout: () => void;
   isAuthenticated: boolean;
+  session: Session | null;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -20,47 +23,106 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   children,
 }) => {
+  const [session, setSession] = useState<Session | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Restore user from localStorage on mount
   useEffect(() => {
-    try {
-      const storedUser = localStorage.getItem('user');
-      if (storedUser) {
-        setUser(JSON.parse(storedUser));
+    let mounted = true;
+
+    // Initialize Auth state
+    const initializeAuth = async () => {
+      try {
+        const { data: { session: initialSession }, error } = await supabase.auth.getSession();
+        
+        if (error) {
+          console.error('Error getting session:', error.message);
+          return;
+        }
+
+        if (mounted) {
+          setSession(initialSession);
+          if (initialSession?.user) {
+            setUser(mapSupabaseUserToLocalUser(initialSession.user));
+          }
+        }
+      } catch (error) {
+        console.error('Failed to initialize auth:', error);
+      } finally {
+        if (mounted) {
+          setIsLoading(false);
+        }
       }
-    } catch (error) {
-      console.error('Failed to restore user from localStorage:', error);
-    } finally {
-      setIsLoading(false);
-    }
+    };
+
+    initializeAuth();
+
+    // Listen for auth state changes
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, newSession) => {
+      if (mounted) {
+        setSession(newSession);
+        if (newSession?.user) {
+          setUser(mapSupabaseUserToLocalUser(newSession.user));
+        } else {
+          setUser(null);
+        }
+      }
+    });
+
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
   }, []);
 
-  const login = useCallback(async (email: string, _password: string) => {
+  const mapSupabaseUserToLocalUser = (suUser: SupabaseUser): User => {
+    return {
+      id: suUser.id,
+      email: suUser.email || '',
+      name: suUser.user_metadata?.full_name || suUser.email?.split('@')[0] || 'User',
+      role: suUser.user_metadata?.role || 'teacher', // Default role
+    };
+  };
+
+  const login = async (email: string, password: string) => {
     setIsLoading(true);
     try {
-      // TODO: Replace with actual API call
-      const mockUser: User = {
-        id: '1',
+      const { data, error } = await supabase.auth.signInWithPassword({
         email,
-        name: email.split('@')[0],
-        role: 'teacher',
-      };
-      setUser(mockUser);
-      localStorage.setItem('user', JSON.stringify(mockUser));
+        password,
+      });
+
+      if (error) throw error;
+      
+      if (data.session) {
+          setSession(data.session);
+          if(data.user) {
+            setUser(mapSupabaseUserToLocalUser(data.user));
+          }
+      }
     } catch (error) {
       console.error('Login failed:', error);
       throw error;
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  };
 
-  const logout = useCallback(() => {
-    setUser(null);
-    localStorage.removeItem('user');
-  }, []);
+  const logout = async () => {
+    setIsLoading(true);
+    try {
+      const { error } = await supabase.auth.signOut();
+      if (error) throw error;
+      setSession(null);
+      setUser(null);
+    } catch (error) {
+      console.error('Logout failed:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const value: AuthContextType = {
     user,
@@ -68,11 +130,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     login,
     logout,
     isAuthenticated: !!user,
+    session,
   };
 
-  return (
-    <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
-  );
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
 
 export const useAuth = () => {

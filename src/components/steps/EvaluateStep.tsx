@@ -3,6 +3,7 @@ import { STERNavigator } from '../STER/STERNavigator';
 import { STERScoringInterface } from '../STER/STERScoringInterface';
 import { TimerFloat } from '../STER/TimerFloat';
 import { STERScores, ScoreLevel } from '../../utils/sterData';
+import { supabase } from '../../utils/supabase';
 
 interface EvaluateStepProps {
   timerSeconds: number;
@@ -38,6 +39,28 @@ export const EvaluateStep: React.FC<EvaluateStepProps> = ({
     });
   };
 
+  const handleAIAnalysis = async () => {
+    try {
+      alert('Generating AI Analysis...');
+      const { data, error } = await supabase.functions.invoke('ai-analysis', {
+        body: { evaluationData: sterScores },
+      });
+
+      if (error) {
+        throw new Error(error.message);
+      }
+
+      if (data?.feedback) {
+        alert('AI Analysis Result:\n\n' + data.feedback);
+      } else {
+        alert('No feedback received from AI.');
+      }
+    } catch (err: any) {
+      console.error('AI Analysis failed:', err);
+      alert('Failed to generate AI Analysis: ' + err.message);
+    }
+  };
+
   return (
     <div className="evaluation-content evaluation-content-ster">
       {/* Left Sidebar - STER Navigator */}
@@ -45,6 +68,7 @@ export const EvaluateStep: React.FC<EvaluateStepProps> = ({
         selectedCategory={selectedCategory}
         onCategorySelect={onSelectedCategoryChange}
         scores={sterScores}
+        onAIAnalysisClick={handleAIAnalysis}
       />
 
       {/* Center - STER Scoring Interface */}
