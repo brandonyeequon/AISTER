@@ -552,15 +552,15 @@ body {
 }
 
 .pause-button {
-  background: #852221;
+  background: #dc2626;
   color: #ffffff;
   border: none;
 }
 
 .pause-button:hover {
-  background: #6d1a15;
+  background: #b91c1c;
   transform: translateY(-2px);
-  box-shadow: 0 12px 24px rgba(133, 34, 33, 0.35), 0 4px 8px rgba(133, 34, 33, 0.2);
+  box-shadow: 0 12px 24px rgba(220, 38, 38, 0.35), 0 4px 8px rgba(220, 38, 38, 0.2);
 }
 
 .restart-button {
